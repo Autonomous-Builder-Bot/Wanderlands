@@ -271,8 +271,7 @@ function updateCharacterAnimation(dt,{moving,sprint,swimming,onGround}){
           characterActions.pistolShoot.time<Math.min(.38,characterActions.pistolShoot.getClip().duration-.04)){
    state='pistolShoot';
  }else if(moving)state=sprint?'run':'walk';
- // The CC0 library has a weapon-ready pistol pose but not a two-handed rifle pose.
- else if(characterActions.pistolIdle)state='pistolIdle';
+ else if(weapon.id==='p226'&&characterActions.pistolIdle)state='pistolIdle';
  else state='idle';
  previousShotCount=weapon.shotCount;
  if(!characterActions[state])state=characterActions.idle?'idle':Object.keys(characterActions)[0];

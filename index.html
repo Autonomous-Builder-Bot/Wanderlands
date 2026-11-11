@@ -192,6 +192,10 @@ for(const sign of [-1,1]){
 // Unlike Soldier.glb, the source contains its own swim/tread/pistol/jump animations.
 // Temporary look only: final art can be replaced once its rig is validated.
 let characterMixer=null,characterActions=null,characterAssetError=null,characterClipNames=[],characterModel=null;
+// The Quaternius GLB is authored facing +Z, while Wanderlands movement is -Z.
+// Correct the art root only, leaving camera yaw and movement physics unchanged.
+const modelFacingRoot=new THREE.Group();modelFacingRoot.name='VisualFacingCorrection';
+modelFacingRoot.rotation.y=Math.PI;avatar.add(modelFacingRoot);
 let activeCharacterState='idle',previousShotCount=0;
 const CHARACTER_URL='https://raw.githubusercontent.com/call-me-sensei-app/toonlab/2e354c52e5539e33fb3d8f339645b47e1ac937ca/public/characters/mannequin.glb';
 new GLTFLoader().load(CHARACTER_URL,gltf=>{
@@ -232,7 +236,7 @@ new GLTFLoader().load(CHARACTER_URL,gltf=>{
       obj.material=Array.isArray(obj.material)?recolored:recolored[0];
     }
   });
-  avatar.add(model);characterModel=model;
+  modelFacingRoot.add(model);characterModel=model;
   // The new GLB supplies both the character and clips, so retargeting is not needed.
   const mixer=new THREE.AnimationMixer(model);
   const actions={};
@@ -445,7 +449,7 @@ function animate(){
  scene.fog.color.copy(submerged?underwaterFog:airFog);
  scene.fog.density=submerged?.036:.0035;
  scene.background.copy(submerged?underwaterFog:skyColor);
- weapons.update(dt,{mode,swimming,moving,sprint});
+ weapons.update(dt,{mode,swimming,moving,sprint,playerYaw:player.rotation.y});
  const label=swimming?(swimDive>.25?'Diving':'Swimming'):!onGround?'Jumping':wading?'Wading':moving?(sprint?'Sprinting':'Walking'):'Exploring';
  document.querySelector('#stats').textContent=label+' · X '+p.x.toFixed(0)+' · Z '+p.z.toFixed(0)+' · '+chunks.size+' chunks';
  renderer.render(scene,camera);
@@ -463,7 +467,11 @@ if(new URLSearchParams(location.search).has('debug')){
    depth:WATER_LEVEL-ground(player.position.x,player.position.z),
    x:player.position.x,z:player.position.z,y:player.position.y,groundY:ground(player.position.x,player.position.z),
    swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug(),
-   pointerLocked,yaw,pitch,characterClipNames,activeCharacterState,characterAssetError,
+   pointerLocked,yaw,pitch,playerYaw:player.rotation.y,
+   modelFacingRootYaw:modelFacingRoot.rotation.y,
+   visualForward:characterModel?new THREE.Vector3(0,0,1).applyQuaternion(characterModel.getWorldQuaternion(new THREE.Quaternion())).toArray():null,
+   cameraGroundForward:[-Math.sin(yaw),0,-Math.cos(yaw)],
+   characterClipNames,activeCharacterState,characterAssetError,
    animationWeights:{
      swim:characterActions?.swim?.getEffectiveWeight()||0,
      tread:characterActions?.tread?.getEffectiveWeight()||0,

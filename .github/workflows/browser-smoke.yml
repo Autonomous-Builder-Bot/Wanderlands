@@ -1,7 +1,7 @@
 name: Browser smoke test
 on:
   push:
-    branches: [main, fix/default-medieval-and-redeploy]
+    branches: [main]
   workflow_dispatch:
 concurrency:
   group: wanderlands-browser-${{ github.ref }}

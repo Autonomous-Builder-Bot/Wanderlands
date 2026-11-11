@@ -88,6 +88,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     holder.add(normalized);
     gunHolders.set(id,holder);
     holder.userData.gunCopy=copy;
+    holder.userData.gunId=id;
     holder.userData.geometrySize=dimension.toArray();
     holder.userData.scale=scale;
     holder.visible=weapons[selected].id===id&&!swimmingState;
@@ -141,6 +142,12 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   const handWorldQuat=new THREE.Quaternion();
   const headingQuat=new THREE.Quaternion();
   const inverseCopyQuat=new THREE.Quaternion();
+  // The imported rifle's visible barrel follows +Y inside its source weapon
+  // mesh, unlike the pistol's -Z. Rotate just the world-held rifle adapter;
+  // the first-person view model and shooting logic remain unchanged.
+  const rifleAxisCorrection=new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(1,0,0),-Math.PI/2
+  );
   function alignWorldGuns(facingYaw) {
     if(!boundHand)return;
     boundHand.updateWorldMatrix(true,false);
@@ -152,7 +159,9 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       // boneWorld * holderLocal * sourceGunLocal = desiredWorldHeading
       inverseCopyQuat.copy(copy.quaternion).invert();
       holder.quaternion.copy(handWorldQuat).invert()
-        .multiply(headingQuat).multiply(inverseCopyQuat);
+        .multiply(headingQuat);
+      if(holder.userData.gunId==='m4a1')holder.quaternion.multiply(rifleAxisCorrection);
+      holder.quaternion.multiply(inverseCopyQuat);
     }
   }
 
@@ -291,7 +300,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       worldGunSize:gunHolders.get(weapon().id)?.userData.geometrySize||null,
       worldGunScale:gunHolders.get(weapon().id)?.userData.scale||null,
       worldGunBarrelAxis:gunHolders.get(weapon().id)?.children[0]?.children[0]?
-        new THREE.Vector3(0,0,-1).applyQuaternion(
+        (weapon().id==='m4a1'?new THREE.Vector3(0,1,0):new THREE.Vector3(0,0,-1)).applyQuaternion(
           gunHolders.get(weapon().id).children[0].children[0].getWorldQuaternion(new THREE.Quaternion())
         ).toArray():null,
       worldGunPosition:gunHolders.get(weapon().id)?

@@ -70,3 +70,20 @@ its README identifies original contributors. Attribution includes:
 This project does **not** claim authorship of these weapon and arm models. The assets are
 loaded from their existing upstream host, not committed as standalone files here.
 Verify full individual source licenses before shipping any commercial product.
+
+## v0.5 — Quaternius CC0 animated character (temporary)
+
+The test character is `public/characters/mannequin.glb` from `call-me-sensei-app/toonlab`
+pinned at `2e354c52e5539e33fb3d8f339645b47e1ac937ca`:
+https://github.com/call-me-sensei-app/toonlab/blob/2e354c52e5539e33fb3d8f339645b47e1ac937ca/public/characters/mannequin.glb
+
+- Original animation/rig creator: Quaternius — Universal Animation Library (Standard)
+  https://quaternius.com/packs/universalanimationlibrary.html
+- License: CC0 1.0 (commercial use, modification and redistribution permitted)
+  https://creativecommons.org/publicdomain/zero/1.0/
+- ToonLab's file metadata: 46 embedded animation clips, SHA-256
+  `37925f7d8278d5a73eb1da2db140164cf8d1969ad84952f209161e883246dbee`
+- Modifications in game: materials tinted blue-grey; source GLB not modified on disk.
+
+The earlier Soldier.glb source is no longer the primary character, but the
+fallback capsule avatar is retained when the GLB cannot load.

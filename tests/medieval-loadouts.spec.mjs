@@ -34,9 +34,13 @@ test('free medieval knight, real sword/shield, greatsword and native melee anima
  await expect.poll(async()=> (await state()).medieval.attacks).toBe(1);
  await expect.poll(async()=> (await state()).medieval.currentClip).toContain('Melee_1H_Attack');
  await page.screenshot({path:info.outputPath('one-handed-sword-attack.png')});
- await page.mouse.click(165,200,{button:'right'});
- await expect.poll(async()=> (await state()).medieval.currentClip,{timeout:11000}).toBe('Melee_Blocking');
+ // Hold the shield guard button; a one-frame right click should not latch blocking.
+ await expect.poll(async()=> (await state()).medieval.attackRemaining,{timeout:11000}).toBe(0);
+ await page.mouse.move(165,200);
+ await page.mouse.down({button:'right'});
+ await expect.poll(async()=> (await state()).medieval.currentClip,{timeout:7000}).toBe('Melee_Blocking');
  await page.screenshot({path:info.outputPath('shield-block.png')});
+ await page.mouse.up({button:'right'});
  await page.keyboard.press('q');
  await expect.poll(async()=> (await state()).medieval.style).toBe('greatsword');
  const two=await state();

@@ -42,7 +42,7 @@ export function loadRifleAnimations(character){
     });
     if(sourceNodes.length<8)throw new Error('KayKit node hierarchy missing: '+JSON.stringify(
       sourceNodes.map(b=>b.name)));
-    gltf.scene.skeleton=sourceMesh?.skeleton||{bones:sourceNodes};
+    gltf.scene.skeleton=sourceMesh?.skeleton||new THREE.Skeleton(sourceNodes);
     const sourceBones=new Map(gltf.scene.skeleton.bones.map(b=>[norm(b.name),b.name]));
     const targetBones=new Map(targetMesh.skeleton.bones.map(b=>[norm(b.name),b.name]));
     const names={},mapped=[];

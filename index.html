@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wanderlands — Procedural RPG</title>
+<style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#9ec2cd;color:#fff;font:14px system-ui,sans-serif}canvas{display:block}
+#hud{position:fixed;top:16px;left:18px;background:#0b1823a8;padding:14px 17px;border-radius:12px;pointer-events:none;line-height:1.7}
+#hud strong{font-size:19px;letter-spacing:2px}#help{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:11px 16px;background:#0b1823b8;border-radius:10px;text-align:center;max-width:95vw}
+#error{display:none;position:fixed;top:25%;left:10%;right:10%;background:#411;color:#fee;padding:20px;white-space:pre-wrap}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"}}</script>
+</head>
+<body>
+<div id="hud"><strong>WANDERLANDS</strong><div id="view">Third person</div><div id="stats">Generating world...</div><div id="seed"></div></div>
+<div id="help">WASD move · Shift sprint · Drag mouse to look · 1 top-down · 2 third-person · 3 first-person · R new world</div>
+<div id="error"></div>
+<script type="module">
+import * as THREE from 'three';
+try {
+const urlSeed=Number(new URLSearchParams(location.search).get('seed'));
+const seed=Number.isFinite(urlSeed)&&urlSeed!==0?urlSeed:2026;
+document.querySelector('#seed').textContent='Seed: '+seed;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9ec6d4);scene.fog=new THREE.FogExp2(0xa7c7bb,.0075);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,600);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
+document.body.prepend(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xdceeff,0x465a34,2.3));
+const sun=new THREE.DirectionalLight(0xffe8b4,3.2);sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-95;sun.shadow.camera.right=95;sun.shadow.camera.top=95;sun.shadow.camera.bottom=-95;sun.shadow.camera.far=280;
+scene.add(sun,sun.target);
+function hash(x,z){let v=Math.imul(x,374761393)+Math.imul(z,668265263)+Math.imul(seed|0,1442695041);v=Math.imul(v^(v>>>13),1274126177);return((v^(v>>>16))>>>0)/4294967295}
+const smooth=t=>t*t*(3-2*t);
+function noise(x,z){const a=Math.floor(x),b=Math.floor(z),u=smooth(x-a),v=smooth(z-b);
+return THREE.MathUtils.lerp(THREE.MathUtils.lerp(hash(a,b),hash(a+1,b),u),THREE.MathUtils.lerp(hash(a,b+1),hash(a+1,b+1),u),v)}
+function ground(x,z){const fade=Math.min(1,Math.hypot(x,z)/18);return (noise(x*.014,z*.014)*16+noise(x*.06,z*.06)*5+noise(x*.2,z*.2)-9)*fade}
+const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,side:THREE.DoubleSide});
+const bark=new THREE.MeshStandardMaterial({color:0x5c4434});
+const foliage=[0x31593b,0x3b683d,0x537e45,0x284c37].map(color=>new THREE.MeshStandardMaterial({color,flatShading:true}));
+const stone=new THREE.MeshStandardMaterial({color:0x8a8e84,flatShading:true});
+const trunkGeo=new THREE.CylinderGeometry(.18,.32,2.6,6),leafGeo=new THREE.ConeGeometry(1.5,4.1,7),rockGeo=new THREE.DodecahedronGeometry(1);
+const CHUNK=48,DETAIL=28,RADIUS=2,chunks=new Map();
+function makeChunk(cx,cz){
+const id=cx+','+cz;if(chunks.has(id))return;
+const group=new THREE.Group(),geometry=new THREE.PlaneGeometry(CHUNK,CHUNK,DETAIL,DETAIL);
+geometry.rotateX(-Math.PI/2);const positions=geometry.attributes.position,colors=[],color=new THREE.Color();
+for(let i=0;i<positions.count;i++){
+const x=positions.getX(i)+cx*CHUNK,z=positions.getZ(i)+cz*CHUNK,h=ground(x,z);
+positions.setY(i,h);const n=noise(x*.1,z*.1);
+color.setRGB(.16+n*.12,.29+n*.15,.12+n*.09);
+if(h>7)color.lerp(new THREE.Color(0x969789),Math.min(.85,(h-7)/10));
+colors.push(color.r,color.g,color.b)}
+geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.computeVertexNormals();
+const mesh=new THREE.Mesh(geometry,terrainMat);mesh.receiveShadow=true;group.position.set(cx*CHUNK,0,cz*CHUNK);group.add(mesh);
+// Props are placed in chunk-local coordinates, allowing terrain to stream endlessly.
+for(let i=0;i<26;i++){
+const r=hash(cx*201+i,cz*211+1),s=hash(cx*207+1,cz*203+i);
+const lx=(r-.5)*(CHUNK-5),lz=(s-.5)*(CHUNK-5),x=lx+cx*CHUNK,z=lz+cz*CHUNK;
+if(Math.hypot(x,z)<12||ground(x,z)>11)continue;
+const y=ground(x,z),t=hash(cx*83+i,cz*79-i);
+if(t<.23){const rock=new THREE.Mesh(rockGeo,stone);rock.position.set(lx,y+.38,lz);rock.scale.set(.6+t*2,.4+t,.6+t*2);rock.castShadow=true;group.add(rock)}
+else{
+const scale=.8+hash(i+cx,cz-i)*.9;
+const trunk=new THREE.Mesh(trunkGeo,bark);trunk.position.set(lx,y+1.3*scale,lz);trunk.scale.setScalar(scale);trunk.castShadow=true;group.add(trunk);
+const leaves=new THREE.Mesh(leafGeo,foliage[Math.min(3,Math.floor(hash(i+cz,cx+9)*4))]);
+leaves.position.set(lx,y+4.05*scale,lz);leaves.scale.setScalar(scale);leaves.castShadow=true;group.add(leaves)}}
+scene.add(group);chunks.set(id,group)}
+function stream(x,z){const cx=Math.floor((x+CHUNK/2)/CHUNK),cz=Math.floor((z+CHUNK/2)/CHUNK);
+for(let a=cx-RADIUS;a<=cx+RADIUS;a++)for(let b=cz-RADIUS;b<=cz+RADIUS;b++)makeChunk(a,b);
+for(const [id,group] of chunks){const [a,b]=id.split(',').map(Number);if(Math.abs(cx-a)>RADIUS||Math.abs(cz-b)>RADIUS){
+group.traverse(obj=>{if(obj.geometry&&!([trunkGeo,leafGeo,rockGeo].includes(obj.geometry)))obj.geometry.dispose()});
+scene.remove(group);chunks.delete(id)}}}
+const player=new THREE.Group();scene.add(player);
+const shirt=new THREE.MeshStandardMaterial({color:0x425e72}),skin=new THREE.MeshStandardMaterial({color:0xc4906e});
+const trousers=new THREE.MeshStandardMaterial({color:0x3b3735}),boots=new THREE.MeshStandardMaterial({color:0x22292a});
+function piece(parent,geo,mat,x,y,z){const p=new THREE.Mesh(geo,mat);p.position.set(x,y,z);p.castShadow=true;parent.add(p);return p}
+piece(player,new THREE.CapsuleGeometry(.34,.62,4,8),shirt,0,1.65,0);
+piece(player,new THREE.SphereGeometry(.28,12,8),skin,0,2.66,0);
+const legs=[],arms=[];
+for(const sign of [-1,1]){
+const arm=new THREE.Group();arm.position.set(sign*.48,2.15,0);
+piece(arm,new THREE.CapsuleGeometry(.12,.58,4,8),shirt,0,-.41,0);player.add(arm);arms.push(arm);
+const leg=new THREE.Group();leg.position.set(sign*.2,1.15,0);
+piece(leg,new THREE.CapsuleGeometry(.15,.71,4,8),trousers,0,-.47,0);
+piece(leg,new THREE.BoxGeometry(.34,.19,.52),boots,0,-.91,-.09);player.add(leg);legs.push(leg)}
+const keys=new Set(),clock=new THREE.Clock(),ahead=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3();
+let mode=2,yaw=.6,pitch=.35,drag=false,step=0;
+function view(n){mode=n;document.querySelector('#view').textContent=['','Top-down','Third-person','First-person'][n];player.visible=n!==3}
+window.addEventListener('keydown',e=>{if(['KeyW','KeyS','KeyA','KeyD','ShiftLeft','Digit1','Digit2','Digit3','KeyR'].includes(e.code))e.preventDefault();
+keys.add(e.code);if(e.code.startsWith('Digit'))view(Number(e.code.slice(-1)));
+if(e.code==='KeyR'){const u=new URL(location.href);u.searchParams.set('seed',String(Math.floor(Math.random()*1e8)+1));location.assign(u.href)}});
+window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>keys.clear());
+renderer.domElement.addEventListener('pointerdown',e=>{drag=true;renderer.domElement.setPointerCapture(e.pointerId)});
+renderer.domElement.addEventListener('pointerup',()=>drag=false);
+renderer.domElement.addEventListener('pointermove',e=>{if(drag){yaw-=e.movementX*.005;pitch=THREE.MathUtils.clamp(pitch+e.movementY*.004,-.6,1.3)}});
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+function animate(){
+requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);
+const x=Number(keys.has('KeyD'))-Number(keys.has('KeyA')),z=Number(keys.has('KeyW'))-Number(keys.has('KeyS')),moving=!!(x||z);
+ahead.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));
+direction.copy(ahead).multiplyScalar(z).addScaledVector(right,x);
+if(moving){direction.normalize();player.position.addScaledVector(direction,dt*(keys.has('ShiftLeft')?10:6));
+player.rotation.y=Math.atan2(-direction.x,-direction.z);step+=dt*(keys.has('ShiftLeft')?15:10)}
+player.position.y=THREE.MathUtils.lerp(player.position.y,ground(player.position.x,player.position.z),Math.min(1,dt*12));
+for(let i=0;i<2;i++){legs[i].rotation.x=THREE.MathUtils.lerp(legs[i].rotation.x,moving?Math.sin(step+i*Math.PI)*.5:0,Math.min(1,dt*15));
+arms[i].rotation.x=THREE.MathUtils.lerp(arms[i].rotation.x,moving?-Math.sin(step+i*Math.PI)*.35:0,Math.min(1,dt*15))}
+stream(player.position.x,player.position.z);
+sun.position.set(player.position.x+55,player.position.y+95,player.position.z+30);sun.target.position.copy(player.position);sun.target.updateMatrixWorld();
+const p=player.position;let target;
+if(mode===1){camera.position.lerp(new THREE.Vector3(p.x,p.y+39,p.z+24),Math.min(1,dt*5));target=new THREE.Vector3(p.x,p.y+1,p.z)}
+else if(mode===2){const d=8,h=Math.cos(pitch)*d;
+camera.position.lerp(new THREE.Vector3(p.x+Math.sin(yaw)*h,p.y+2.5+Math.sin(pitch)*d,p.z+Math.cos(yaw)*h),Math.min(1,dt*8));
+target=new THREE.Vector3(p.x,p.y+1.6,p.z)}
+else{camera.position.set(p.x,p.y+2.6,p.z);
+target=camera.position.clone().add(new THREE.Vector3(-Math.sin(yaw)*Math.cos(pitch),-Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(10))}
+camera.lookAt(target);
+document.querySelector('#stats').textContent='X '+p.x.toFixed(0)+' · Z '+p.z.toFixed(0)+' · '+chunks.size+' chunks';
+renderer.render(scene,camera)}
+stream(0,0);view(2);animate();
+} catch(e){document.querySelector('#error').style.display='block';document.querySelector('#error').textContent='Unable to start game: '+String(e);console.error(e)}
+</script>
+</body></html>

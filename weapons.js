@@ -205,7 +205,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
         if(angle<.001)continue;
         worldTurn.setFromUnitVectors(currentVector,targetVector);
         // Dampen large single-joint changes to avoid elbows snapping backwards.
-        if(angle>.52)worldTurn.slerp(identity,.52/angle);
+        if(angle>.52)worldTurn.slerp(identity,1-.52/angle);
         joint.parent.getWorldQuaternion(transformQ);
         localTurn.copy(transformQ).invert().multiply(worldTurn).multiply(transformQ);
         joint.quaternion.premultiply(localTurn).normalize();

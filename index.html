@@ -374,7 +374,7 @@ function animate(){
  velocity.lerp(targetVelocity,Math.min(1,dt*(swimming?3.2:9)));
  player.position.addScaledVector(velocity,dt);
  if(moving){
-  player.rotation.y=Math.atan2(-direction.x,-direction.z);
+  if(mode!==3)player.rotation.y=Math.atan2(-direction.x,-direction.z);
   step+=dt*(swimming?(sprint?10:7):sprint?15:wading?7:10);
  }
  const groundY=ground(player.position.x,player.position.z);
@@ -411,7 +411,9 @@ function animate(){
  // Quaternius source clips contain authored arm/leg strokes and treading water.
  // Do not re-tilt the rig when a native swim clip supplies the full swimming pose.
  const nativeSwim=swimming&&characterActions?.swim&&characterActions?.tread;
- const targetTilt=swimming&&!nativeSwim?-1.05:0;
+ // Quaternius strokes move limbs, while the character root needs a horizontal
+ // surface-swim pose. Treading water remains upright.
+ const targetTilt=swimming?(moving?-1.36:0):0;
  rigPivot.rotation.x=THREE.MathUtils.lerp(rigPivot.rotation.x,targetTilt,Math.min(1,dt*5));
  updateCharacterAnimation(dt,{moving,sprint,swimming,onGround});
  for(let i=0;i<2;i++){
@@ -431,8 +433,8 @@ function animate(){
   camera.position.lerp(new THREE.Vector3(p.x,p.y+27,p.z+15),Math.min(1,dt*5));
   target=new THREE.Vector3(p.x,p.y+1,p.z);
  }else if(mode===2){
-  const d=6.2,h=Math.cos(pitch)*d;
-  camera.position.lerp(new THREE.Vector3(p.x+Math.sin(yaw)*h,p.y+2.0+Math.sin(pitch)*d,p.z+Math.cos(yaw)*h),Math.min(1,dt*8));
+  const d=swimming?10:6.2,h=Math.cos(pitch)*d;
+  camera.position.lerp(new THREE.Vector3(p.x+Math.sin(yaw)*h,p.y+(swimming?2.8:2.0)+Math.sin(pitch)*d,p.z+Math.cos(yaw)*h),Math.min(1,dt*8));
   target=new THREE.Vector3(p.x,p.y+(swimming?1.4:1.6),p.z);
  }else{
   camera.position.set(p.x,p.y+(swimming?2.0:2.62),p.z);

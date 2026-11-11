@@ -37,6 +37,8 @@ test('W moves forward and the model faces its travel direction, with guns visibl
   await page.keyboard.press('q');
   await expect.poll(async()=> (await state()).weapons.active).toBe('m4a1');
   await expect.poll(async()=> (await state()).weapons.worldGunVisible).toBe(true);
+  await expect.poll(async()=> (await state()).activeCharacterState,{timeout:7000}).toBe('pistolIdle');
+  await page.waitForTimeout(650);
   const rifle=await state();
   const rifleAxis=rifle.weapons.worldGunBarrelAxis;
   const rifleDot=dot(rifleAxis,rifle.visualForward);

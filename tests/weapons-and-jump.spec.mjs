@@ -5,7 +5,7 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  page.on('pageerror',e=>errors.push(e.message));
  page.on('requestfailed',r=>console.log('FAILED URL',r.url(),r.failure()?.errorText));
  page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.log('BROWSER LOG',m.type(),m.text())});
- await page.goto('/?debug=1',{waitUntil:'domcontentloaded'});
+ await page.goto('/?debug=1&mode=guns',{waitUntil:'domcontentloaded'});
  const state=()=>page.evaluate(()=>window.__wanderlandsDebug?.state());
  await expect.poll(async()=>!!(await state()),{timeout:45000}).toBe(true);
  await expect.poll(async()=> (await state()).weapons.loaded.every(w=>w.loaded),{timeout:90000}).toBe(true);

@@ -382,13 +382,6 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
         new THREE.Vector3(0,0,-1).applyQuaternion(
           gunHolders.get(weapon().id).children[0].children[0].getWorldQuaternion(new THREE.Quaternion())
         ).toArray():null,
-      worldGunActualBounds:(()=>{
-        const holder=gunHolders.get(weapon().id);
-        if(!holder)return null;
-        const bounds=new THREE.Box3().setFromObject(holder);
-        return {center:bounds.getCenter(new THREE.Vector3()).toArray(),
-          size:bounds.getSize(new THREE.Vector3()).toArray()};
-      })(),
       worldGunPosition:gunHolders.get(weapon().id)?
         gunHolders.get(weapon().id).getWorldPosition(new THREE.Vector3()).toArray():null,
       shotCount

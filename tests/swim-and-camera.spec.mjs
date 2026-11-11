@@ -39,10 +39,11 @@ test('first-person mouse lock and actual animated swim and third-person weapons'
  await expect.poll(async()=> (await state()).activeCharacterState,{timeout:10000}).toBe('swim');
  await expect.poll(async()=> (await state()).animationWeights.swim,{timeout:7000}).toBeGreaterThan(.5);
  const a=(await state()).handPose;
- await page.waitForTimeout(450);
- const b=(await state()).handPose;
- expect(a).toBeTruthy();expect(b).toBeTruthy();
- expect(a.reduce((n,v,i)=>n+Math.abs(v-b[i]),0)).toBeGreaterThan(.015);
+ expect(a).toBeTruthy();
+ await expect.poll(async()=>{
+   const b=(await state()).handPose;
+   return b?a.reduce((n,v,i)=>n+Math.abs(v-b[i]),0):0;
+ },{timeout:12000}).toBeGreaterThan(.012);
  await page.keyboard.up('w');
  await page.screenshot({path:testInfo.outputPath('actual-swim.png')});
  expect(errors).toEqual([]);

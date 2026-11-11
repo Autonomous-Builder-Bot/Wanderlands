@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { retargetClip } from 'three/addons/utils/SkeletonUtils.js';
+// Retarget local rotations relative to each rig's bind pose.
 
 // Source: KayKit Character Animations 1.1 (Kay Lousberg), CC0.
 // Published as a GLB by NoLimitNexus, pinned at a specific commit.
@@ -17,14 +17,33 @@ function skinned(root){
  root.traverse(o=>{if(o.isSkinnedMesh&&o.skeleton?.bones?.length&&(!mesh||o.skeleton.bones.length>mesh.skeleton.bones.length))mesh=o;});
  return mesh;
 }
-function onlyUpperBody(clip,name){
- const tracks=clip.tracks.filter(track=>{
-   if(!track.name.endsWith('.quaternion'))return false;
-   const bone=track.name.match(/\.bones\[([^\]]+)\]/)?.[1];
-   return !!bone&&ROLES.some(([target])=>norm(bone)===target);
- });
- return new THREE.AnimationClip(name,clip.duration,tracks).optimize();
+function retargetLocally(sourceRoot,sourceClip,pairs,sourceRest,targetRest,name){
+  // Preserve authored two-handed motion, but express every source bone's
+  // angular change relative to its bind pose in the target bone's bind basis.
+  // This avoids the 90-degree wrist/shoulder mismatch of direct world rotations.
+  const frames=Math.max(3,Math.ceil(sourceClip.duration*24)+1);
+  const times=new Float32Array(frames);
+  const samples=pairs.map(pair=>({bone:pair.target.name,values:new Float32Array(frames*4)}));
+  const mixer=new THREE.AnimationMixer(sourceRoot);
+  mixer.clipAction(sourceClip).play();
+  const qDelta=new THREE.Quaternion(),qResult=new THREE.Quaternion();
+  for(let f=0;f<frames;f++){
+    const time=Math.min(sourceClip.duration-.0001,f*sourceClip.duration/(frames-1));
+    mixer.setTime(time);times[f]=f*sourceClip.duration/(frames-1);
+    for(let i=0;i<pairs.length;i++){
+      const pair=pairs[i],restInv=sourceRest.get(pair.source.name);
+      qDelta.copy(restInv).multiply(pair.source.quaternion);
+      qResult.copy(targetRest.get(pair.target.name)).multiply(qDelta).normalize();
+      qResult.toArray(samples[i].values,f*4);
+    }
+  }
+  mixer.stopAllAction();
+  return new THREE.AnimationClip(name,sourceClip.duration,
+    samples.map(s=>new THREE.QuaternionKeyframeTrack(
+      '.bones['+s.bone+'].quaternion',times,s.values
+    ))).optimize();
 }
+
 export function loadRifleAnimations(character){
  return new Promise((resolve,reject)=>{
   new GLTFLoader().load(URL,gltf=>{
@@ -45,11 +64,23 @@ export function loadRifleAnimations(character){
     gltf.scene.skeleton=sourceMesh?.skeleton||new THREE.Skeleton(sourceNodes);
     const sourceBones=new Map(gltf.scene.skeleton.bones.map(b=>[norm(b.name),b.name]));
     const targetBones=new Map(targetMesh.skeleton.bones.map(b=>[norm(b.name),b.name]));
-    const names={},mapped=[];
+    const mapped=[],pairs=[];
     for(const [targetRole,sourceRole] of ROLES){
       const t=targetBones.get(targetRole),s=sourceBones.get(sourceRole);
-      if(t&&s){names[t]=s;mapped.push(t);}
+      if(t&&s){
+        mapped.push(t);
+        pairs.push({target:targetMesh.skeleton.getBoneByName(t),
+          source:gltf.scene.skeleton.getBoneByName(s)});
+      }
     }
+    // Copy the native Quaternius rest quaternions, not its current pistol pose.
+    targetMesh.skeleton.pose();
+    const sourceRest=new Map(pairs.map(p=>[
+      p.source.name,p.source.quaternion.clone().invert()
+    ]));
+    const targetRest=new Map(pairs.map(p=>[
+      p.target.name,p.target.quaternion.clone()
+    ]));
     const leftArm=mapped.some(n=>/upper_arm.*l$/i.test(n)),rightArm=mapped.some(n=>/upper_arm.*r$/i.test(n));
     if(!leftArm||!rightArm)throw new Error('Could not map both rifle arms: '+JSON.stringify(mapped));
     const clips=new Map(gltf.animations.map(c=>[c.name,c]));
@@ -57,10 +88,8 @@ export function loadRifleAnimations(character){
     for(const [role,name] of Object.entries(CLIP_NAMES)){
       const original=clips.get(name);
       if(!original)throw new Error('CC0 pack missing '+name);
-      const baked=retargetClip(targetMesh,gltf.scene,original,{
-        names,hip:'__none__',fps:24,preserveBonePositions:true,preserveBoneMatrix:true
-      });
-      const upper=onlyUpperBody(baked,'WanderlandsRifle_'+role);
+      const upper=retargetLocally(gltf.scene,original,pairs,
+        sourceRest,targetRest,'WanderlandsRifle_'+role);
       if(upper.tracks.length<4)throw new Error('No usable upper body on '+name);
       const action=mixer.clipAction(upper);
       if(role!=='aim'){action.setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;}

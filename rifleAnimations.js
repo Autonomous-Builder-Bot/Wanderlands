@@ -107,12 +107,20 @@ export function loadRifleAnimations(character){
       else if(shotCount!==lastShots)next='shoot';
       else if(current==='shoot'&&actions.shoot.time<actions.shoot.getClip().duration-.04)next='shoot';
       if(current!==next||(next==='shoot'&&shotCount!==lastShots)){
-        if(current&&current!==next)actions[current].stop();
-        const a=actions[next];a.reset();
-        if(next==='shoot')a.setEffectiveTimeScale(a.getClip().duration/.26);
-        else if(next==='reload')a.setEffectiveTimeScale(a.getClip().duration/Math.max(.2,reloadDuration));
-        else a.setEffectiveTimeScale(1);
-        a.play();current=next;
+        const previous=current?actions[current]:null;
+        const action=actions[next];
+        // Do not stop the previous action abruptly: a pistol-style snap from
+        // KayKit shoot/reload to aim can move both wrists in a single frame.
+        if(previous===action)action.stop();
+        action.reset().setEffectiveWeight(1);
+        if(next==='shoot')action.setEffectiveTimeScale(action.getClip().duration/.26);
+        else if(next==='reload')action.setEffectiveTimeScale(action.getClip().duration/Math.max(.2,reloadDuration));
+        else action.setEffectiveTimeScale(1);
+        action.play();
+        if(previous&&previous!==action){
+          action.crossFadeFrom(previous,next==='reload'?.18:.13,false);
+        }
+        current=next;
       }
       lastShots=shotCount;
       mixer.update(dt);

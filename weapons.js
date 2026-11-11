@@ -162,6 +162,48 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   const currentVector=new THREE.Vector3(),targetVector=new THREE.Vector3();
   const worldTurn=new THREE.Quaternion(),localTurn=new THREE.Quaternion();
   const transformQ=new THREE.Quaternion(),localTarget=new THREE.Vector3();
+  // The character's mixers reset shoulder/elbow quaternions every frame.
+  // Cache the POST-IK render pose and blend back to the new solution to avoid
+  // a visible single-frame elbow snap each time the animation changes.
+  const renderedArmPose={R:null,L:null};
+  let rifleIKActive=false,rifleIKReleasing=false;
+  const smoothedResult=new THREE.Quaternion(),authoredArmQuat=new THREE.Quaternion();
+  function smoothArmPose(side,chain,dt,{release=false}={}){
+    const bones=[chain.upper,chain.elbow],prior=renderedArmPose[side];
+    if(!prior){
+      renderedArmPose[side]=bones.map(b=>b.quaternion.clone());
+      return;
+    }
+    const follow=1-Math.exp(-Math.min(.2,dt)*(release?12:24));
+    for(let i=0;i<bones.length;i++){
+      const goal=bones[i].quaternion;
+      const angle=prior[i].angleTo(goal);
+      const maxRadians=(release?11:10)*Math.min(.2,dt);
+      const factor=Math.min(follow,angle>1e-6?maxRadians/angle:1);
+      smoothedResult.copy(prior[i]).slerp(goal,Math.min(1,factor));
+      bones[i].quaternion.copy(smoothedResult).normalize();
+      prior[i].copy(bones[i].quaternion);
+    }
+    chain.upper.updateWorldMatrix(true,true);
+  }
+  function warmStartArm(side,chain) {
+    const prior=renderedArmPose[side];
+    if(!prior)return;
+    // Previous smoothed pose is a stable IK seed. Give the new authored rifle
+    // frame 20% influence, then solve toward the grip rather than restarting
+    // from an unrelated elbow bend on every frame.
+    for(let i=0;i<2;i++){
+      const joint=i===0?chain.upper:chain.elbow;
+      authoredArmQuat.copy(joint.quaternion);
+      joint.quaternion.copy(prior[i]).slerp(authoredArmQuat,.20).normalize();
+    }
+    chain.upper.updateWorldMatrix(true,true);
+  }
+  function resetRifleIK(){
+    renderedArmPose.R=null;renderedArmPose.L=null;
+    rifleIKActive=false;rifleIKReleasing=false;
+    rifleGripErrorR=0;rifleGripErrorL=0;rifleTargets=null;
+  }
   let rifleGripErrorR=0,rifleGripErrorL=0;
   let rifleTargets=null;
   function alignWorldGuns(facingYaw) {
@@ -205,7 +247,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
         if(angle<.001)continue;
         worldTurn.setFromUnitVectors(currentVector,targetVector);
         // Dampen large single-joint changes to avoid elbows snapping backwards.
-        if(angle>.52)worldTurn.slerp(identity,1-.52/angle);
+        if(angle>.38)worldTurn.slerp(identity,1-.38/angle);
         joint.parent.getWorldQuaternion(transformQ);
         localTurn.copy(transformQ).invert().multiply(worldTurn).multiply(transformQ);
         joint.quaternion.premultiply(localTurn).normalize();
@@ -215,11 +257,18 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     chain.hand.getWorldPosition(handPosition);
     return handPosition.distanceTo(target);
   }
-  const gripRight=new THREE.Vector3(-.17,1.34,.45);
-  const gripLeft=new THREE.Vector3(.13,1.32,.52);
+  const gripRight=new THREE.Vector3(-.17,1.34,.42);
+  const gripLeft=new THREE.Vector3(.13,1.32,.44);
   const rightWorld=new THREE.Vector3(),leftWorld=new THREE.Vector3();
-  function updateRifleHands({swimming,reloading}){
-    if(swimming||selected!==1||!bodyRoot||!armChains.R||!armChains.L)return;
+  function updateRifleHands({swimming,reloading,dt}){
+    if(swimming||selected!==1||!bodyRoot||!armChains.R||!armChains.L){
+      if(rifleIKActive)resetRifleIK();
+      return;
+    }
+    if(!rifleIKActive){rifleIKActive=true;}
+    const newlyReleasing=reloading&&!rifleIKReleasing;
+    if(newlyReleasing)rifleIKReleasing=true;
+    if(!reloading)rifleIKReleasing=false;
     bodyRoot.updateWorldMatrix(true,true);
     rightWorld.copy(gripRight);
     leftWorld.copy(gripLeft);
@@ -232,9 +281,25 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     }
     bodyRoot.localToWorld(rightWorld);
     bodyRoot.localToWorld(leftWorld);
-    rifleGripErrorR=reachGrip(armChains.R,rightWorld);
-    // During reload the source clip moves the support hand to the magazine.
-    rifleGripErrorL=reloading?0:reachGrip(armChains.L,leftWorld);
+    // Solve from the mixer pose, then smooth against the previous RENDERED
+    // pose. Without this, transitions between KayKit clips abruptly move arms.
+    warmStartArm('R',armChains.R);
+    reachGrip(armChains.R,rightWorld);
+    smoothArmPose('R',armChains.R,dt);
+    armChains.R.hand.getWorldPosition(handPosition);
+    rifleGripErrorR=handPosition.distanceTo(rightWorld);
+    if(reloading){
+      // Fade left arm back to the authored magazine-change motion instead of
+      // instantly dropping IK on the frame reload begins.
+      smoothArmPose('L',armChains.L,dt,{release:true});
+      rifleGripErrorL=0;
+    }else{
+      warmStartArm('L',armChains.L);
+      reachGrip(armChains.L,leftWorld);
+      smoothArmPose('L',armChains.L,dt);
+      armChains.L.hand.getWorldPosition(handPosition);
+      rifleGripErrorL=handPosition.distanceTo(leftWorld);
+    }
     rifleTargets={right:rightWorld.toArray(),left:leftWorld.toArray()};
   }
   function setPerspective(n,swimming=false) {
@@ -247,7 +312,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     if(activeReload!==null)return false;
     selected=(index+weapons.length)%weapons.length;
     heldFire=false;recoil=0;
-    applyVisibility();updateHud();
+    applyVisibility();updateHud();resetRifleIK();
     return true;
   }
 
@@ -324,9 +389,10 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     setPerspective(mode,swimming);
     if(!swimming){
       alignWorldGuns(playerYaw);
-      if(mode!==3)updateRifleHands({swimming,reloading:activeReload!==null});
+      if(mode!==3)updateRifleHands({swimming,reloading:activeReload!==null,dt});
+      else if(rifleIKActive)resetRifleIK();
     }
-    if(swimming!==swimmingState){swimmingState=swimming;applyVisibility();}
+    if(swimming!==swimmingState){swimmingState=swimming;applyVisibility();if(swimming)resetRifleIK();}
     fpRoot.userData.canFire=!swimming;
     if(activeReload!==null) {
       reloadTime-=dt;
@@ -377,7 +443,10 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       mount:gunHolders.get(weapon().id)?.userData.mount||null,
       rightHandPosition:boundHand?.getWorldPosition(new THREE.Vector3()).toArray()||null,
       leftHandPosition:armChains.L?.hand.getWorldPosition(new THREE.Vector3()).toArray()||null,
-      rifleGripErrorR,rifleGripErrorL,rifleTargets,
+      rifleGripErrorR,rifleGripErrorL,rifleTargets,rifleIKActive,
+      armQuaternions:Object.fromEntries(Object.entries(armChains).map(([side,chain])=>
+        [side,[...chain.upper.quaternion.toArray(),...chain.elbow.quaternion.toArray()]]
+      )),
       worldGunBarrelAxis:gunHolders.get(weapon().id)?.children[0]?.children[0]?
         new THREE.Vector3(0,0,-1).applyQuaternion(
           gunHolders.get(weapon().id).children[0].children[0].getWorldQuaternion(new THREE.Quaternion())

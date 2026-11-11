@@ -105,7 +105,7 @@ export function loadRifleAnimations(character){
       let next='aim';
       if(reloading)next='reload';
       else if(shotCount!==lastShots)next='shoot';
-      else if(current==='shoot'&&actions.shoot.time<Math.min(.24,actions.shoot.getClip().duration-.03))next='shoot';
+      else if(current==='shoot'&&actions.shoot.time<actions.shoot.getClip().duration-.04)next='shoot';
       if(current!==next||(next==='shoot'&&shotCount!==lastShots)){
         if(current&&current!==next)actions[current].stop();
         const a=actions[next];a.reset();

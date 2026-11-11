@@ -6,7 +6,7 @@ test('official water renders horizontally and player can swim and dive',async({p
  page.on('requestfailed',r=>console.error('Resource failed:',r.url(),r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)console.error('HTTP error:',r.status(),r.url());});
  page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.error('Browser console:',m.type(),m.text());});
- await page.goto('/?debug=1',{waitUntil:'domcontentloaded'});
+ await page.goto('/?debug=1&mode=guns',{waitUntil:'domcontentloaded'});
  await expect(page.locator('#stats')).not.toHaveText(/Generating world/, {timeout:30000});
  const state=()=>page.evaluate(()=>window.__wanderlandsDebug?.state());
  await expect.poll(async()=> (await state())?.waterIsOfficial,{timeout:15000}).toBe(true);

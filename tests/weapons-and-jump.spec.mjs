@@ -33,9 +33,9 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  await expect.poll(async()=> (await state()).mode).toBe(3);
  await expect.poll(async()=> (await state()).weapons.modelVisible).toBe(true);
 
- const ammoBefore=(await state()).weapons.ammo;
  if(!(await state()).pointerLocked)await page.locator('canvas').click({position:{x:150,y:110}});
  await expect.poll(async()=> (await state()).pointerLocked,{timeout:3500}).toBe(true);
+ const ammoBefore=(await state()).weapons.ammo;
  await page.locator('canvas').click({position:{x:150,y:110}});
  await expect.poll(async()=> (await state()).weapons.ammo).toBe(ammoBefore-1);
 

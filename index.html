@@ -14,7 +14,7 @@
 </head>
 <body>
 <div id="hud"><strong>WANDERLANDS</strong><div id="view">Third person</div><div id="stats">Generating world...</div><div id="seed"></div></div>
-<div id="help">WASD move · Space jump/swim · Shift sprint · 1/2/3 views · M medieval/guns · Medieval: Q sword+shield/greatsword, click attack, right-click block · Guns: Q switch, R reload · N new world</div>
+<div id="help">MEDIEVAL PREVIEW · M switches medieval/guns · Q sword+shield/greatsword · Click attack · Right-click block · WASD move · Space jump/swim · Shift sprint · 1/2/3 views · N new world</div>
 <div id="error"></div>
 <script type="module">
 import * as THREE from 'three';
@@ -530,6 +530,13 @@ if(new URLSearchParams(location.search).has('debug')){
    velocity.set(0,0,0);swimDive=0;verticalSpeed=0;onGround=false;
   }
  };
+}
+// Medieval is now the visible default for the prototype. Keep the earlier
+// firearm mode available via M, or use ?mode=guns for direct testing.
+const startupMode=new URLSearchParams(location.search).get('mode');
+if(startupMode!=='guns'){
+ medieval.setActive(true);
+ weapons.setMedievalMode(true);
 }
 stream(0,0);view(2);animate();
 } catch(e){document.querySelector('#error').style.display='block';document.querySelector('#error').textContent='Unable to start game: '+String(e);console.error(e)}

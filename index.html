@@ -315,6 +315,25 @@ function animate(){
  renderer.render(scene,camera);
 }
 
+// Read-only diagnostics and a local test teleport, exposed only with ?debug=1.
+if(new URLSearchParams(location.search).has('debug')){
+ window.__wanderlandsDebug={
+  state:()=>({
+   waterIsOfficial:water.isWater===true,
+   waterHorizontal:Math.abs(water.rotation.x+Math.PI/2)<.00001,
+   waterCenter:{x:water.position.x,y:water.position.y,z:water.position.z},
+   waterNormalsLoaded:!!(waterNormals.image&&waterNormals.image.width>0),
+   characterLoaded:!!characterMixer,
+   depth:WATER_LEVEL-ground(player.position.x,player.position.z),
+   x:player.position.x,z:player.position.z,
+   swimming,swimDive,mode
+  }),
+  teleportLake:()=>{
+   player.position.set(LAKE_X,ground(LAKE_X,LAKE_Z),LAKE_Z);
+   velocity.set(0,0,0);swimDive=0;
+  }
+ };
+}
 stream(0,0);view(2);animate();
 } catch(e){document.querySelector('#error').style.display='block';document.querySelector('#error').textContent='Unable to start game: '+String(e);console.error(e)}
 </script>

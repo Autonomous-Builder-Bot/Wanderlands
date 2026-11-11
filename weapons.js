@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // Weapon/arm art is loaded from a fixed revision of IRONLINE's credited CC BY 4.0
 // FPS model collection. See THIRD_PARTY_NOTICES.md for individual authors.
@@ -11,7 +12,7 @@ const SPECS=[
 ];
 
 export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
-  const loader=new GLTFLoader();
+  const loader=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   const fpRoot=new THREE.Group();
   fpRoot.name='FirstPersonWeaponView';
   camera.add(fpRoot);

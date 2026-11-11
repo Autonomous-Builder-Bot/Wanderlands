@@ -45,7 +45,8 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  // Must play an authored reload animation; a timer-only reload is insufficient.
  await expect.poll(async()=> (await state()).weapons.clipPlaying,{timeout:2500}).toBe(true);
  await expect.poll(async()=> (await state()).weapons.reloading,{timeout:15000}).toBe(false);
- expect((await state()).weapons.ammo).toBe(ammoBefore);
+ expect((await state()).weapons.ammo).toBe(12);
+ expect((await state()).weapons.reserve).toBeLessThan(60);
 
  await page.keyboard.press('2');
  await expect.poll(async()=> (await state()).pointerLocked,{timeout:3500}).toBe(false);

@@ -186,6 +186,18 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     }
     chain.upper.updateWorldMatrix(true,true);
   }
+  function warmStartArm(side,chain) {
+    const prior=renderedArmPose[side];
+    if(!prior)return;
+    // Previous smoothed pose is a stable IK seed. Give the new authored rifle
+    // frame 20% influence, then solve toward the grip rather than restarting
+    // from an unrelated elbow bend on every frame.
+    for(let i=0;i<2;i++){
+      const joint=i===0?chain.upper:chain.elbow;
+      joint.quaternion.copy(prior[i]).slerp(joint.quaternion,.20).normalize();
+    }
+    chain.upper.updateWorldMatrix(true,true);
+  }
   function resetRifleIK(){
     renderedArmPose.R=null;renderedArmPose.L=null;
     rifleIKActive=false;rifleIKReleasing=false;
@@ -218,7 +230,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   // pose and make the wrist reach a specific foregrip / trigger target.
   // Unlike copying KayKit wrist rotations directly, this aligns positions
   // despite differences in the two rigs' bone rest axes.
-  function reachGrip(chain,target,iterations=6) {
+  function reachGrip(chain,target,iterations=8) {
     if(!chain)return Infinity;
     for(let iter=0;iter<iterations;iter++) {
       for(const joint of [chain.elbow,chain.upper]){
@@ -234,7 +246,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
         if(angle<.001)continue;
         worldTurn.setFromUnitVectors(currentVector,targetVector);
         // Dampen large single-joint changes to avoid elbows snapping backwards.
-        if(angle>.28)worldTurn.slerp(identity,1-.28/angle);
+        if(angle>.38)worldTurn.slerp(identity,1-.38/angle);
         joint.parent.getWorldQuaternion(transformQ);
         localTurn.copy(transformQ).invert().multiply(worldTurn).multiply(transformQ);
         joint.quaternion.premultiply(localTurn).normalize();
@@ -245,7 +257,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     return handPosition.distanceTo(target);
   }
   const gripRight=new THREE.Vector3(-.17,1.34,.42);
-  const gripLeft=new THREE.Vector3(.13,1.32,.47);
+  const gripLeft=new THREE.Vector3(.13,1.32,.44);
   const rightWorld=new THREE.Vector3(),leftWorld=new THREE.Vector3();
   function updateRifleHands({swimming,reloading,dt}){
     if(swimming||selected!==1||!bodyRoot||!armChains.R||!armChains.L){
@@ -270,6 +282,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     bodyRoot.localToWorld(leftWorld);
     // Solve from the mixer pose, then smooth against the previous RENDERED
     // pose. Without this, transitions between KayKit clips abruptly move arms.
+    warmStartArm('R',armChains.R);
     reachGrip(armChains.R,rightWorld);
     smoothArmPose('R',armChains.R,dt);
     armChains.R.hand.getWorldPosition(handPosition);
@@ -280,6 +293,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       smoothArmPose('L',armChains.L,dt,{release:true});
       rifleGripErrorL=0;
     }else{
+      warmStartArm('L',armChains.L);
       reachGrip(armChains.L,leftWorld);
       smoothArmPose('L',armChains.L,dt);
       armChains.L.hand.getWorldPosition(handPosition);

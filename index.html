@@ -191,7 +191,7 @@ for(const sign of [-1,1]){
 // CC0 Quaternius mannequin from ToonLab: native humanoid skeleton plus 46 authored clips.
 // Unlike Soldier.glb, the source contains its own swim/tread/pistol/jump animations.
 // Temporary look only: final art can be replaced once its rig is validated.
-let characterMixer=null,characterActions=null,characterAssetError=null,characterClipNames=[];
+let characterMixer=null,characterActions=null,characterAssetError=null,characterClipNames=[],characterModel=null;
 let activeCharacterState='idle',previousShotCount=0;
 const CHARACTER_URL='https://raw.githubusercontent.com/call-me-sensei-app/toonlab/2e354c52e5539e33fb3d8f339645b47e1ac937ca/public/characters/mannequin.glb';
 new GLTFLoader().load(CHARACTER_URL,gltf=>{
@@ -219,8 +219,20 @@ new GLTFLoader().load(CHARACTER_URL,gltf=>{
     return;
   }
   const model=gltf.scene;model.name='WanderlandsCC0TestMannequin';
-  model.traverse(obj=>{if(obj.isMesh){obj.castShadow=true;obj.frustumCulled=false;}});
-  avatar.add(model);
+  model.traverse(obj=>{
+    if(obj.isMesh){
+      obj.castShadow=true;obj.frustumCulled=false;
+      // Improve underwater contrast without altering the CC0 geometry or clips.
+      const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+      const recolored=mats.map(m=>{
+        const material=m.clone();
+        if(material.color)material.color.multiply(new THREE.Color(0x758fa8));
+        return material;
+      });
+      obj.material=Array.isArray(obj.material)?recolored:recolored[0];
+    }
+  });
+  avatar.add(model);characterModel=model;
   // The new GLB supplies both the character and clips, so retargeting is not needed.
   const mixer=new THREE.AnimationMixer(model);
   const actions={};
@@ -416,11 +428,11 @@ function animate(){
  sun.target.position.copy(player.position);sun.target.updateMatrixWorld();
  const p=player.position;let target;
  if(mode===1){
-  camera.position.lerp(new THREE.Vector3(p.x,p.y+48,p.z+31),Math.min(1,dt*5));
+  camera.position.lerp(new THREE.Vector3(p.x,p.y+27,p.z+15),Math.min(1,dt*5));
   target=new THREE.Vector3(p.x,p.y+1,p.z);
  }else if(mode===2){
-  const d=10,h=Math.cos(pitch)*d;
-  camera.position.lerp(new THREE.Vector3(p.x+Math.sin(yaw)*h,p.y+2.8+Math.sin(pitch)*d,p.z+Math.cos(yaw)*h),Math.min(1,dt*8));
+  const d=6.2,h=Math.cos(pitch)*d;
+  camera.position.lerp(new THREE.Vector3(p.x+Math.sin(yaw)*h,p.y+2.0+Math.sin(pitch)*d,p.z+Math.cos(yaw)*h),Math.min(1,dt*8));
   target=new THREE.Vector3(p.x,p.y+(swimming?1.4:1.6),p.z);
  }else{
   camera.position.set(p.x,p.y+(swimming?2.0:2.62),p.z);
@@ -449,7 +461,14 @@ if(new URLSearchParams(location.search).has('debug')){
    depth:WATER_LEVEL-ground(player.position.x,player.position.z),
    x:player.position.x,z:player.position.z,y:player.position.y,groundY:ground(player.position.x,player.position.z),
    swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug(),
-   pointerLocked,yaw,pitch,characterClipNames,activeCharacterState,characterAssetError
+   pointerLocked,yaw,pitch,characterClipNames,activeCharacterState,characterAssetError,
+   animationWeights:{
+     swim:characterActions?.swim?.getEffectiveWeight()||0,
+     tread:characterActions?.tread?.getEffectiveWeight()||0,
+     shoot:characterActions?.pistolShoot?.getEffectiveWeight()||0,
+     reload:characterActions?.pistolReload?.getEffectiveWeight()||0
+   },
+   handPose:characterModel?.getObjectByName('DEF-handR')?.quaternion.toArray()||null
   }),
   teleportLake:()=>{
    player.position.set(LAKE_X,ground(LAKE_X,LAKE_Z),LAKE_Z);

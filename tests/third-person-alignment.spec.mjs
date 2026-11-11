@@ -9,6 +9,7 @@ test('W moves forward and the model faces its travel direction, with guns visibl
   await expect.poll(async()=> (await state())?.characterClipNames?.length>20,{timeout:90000}).toBe(true);
   await expect.poll(async()=> (await state()).weapons.loaded.every(w=>w.loaded),{timeout:90000}).toBe(true);
   await expect.poll(async()=> (await state()).weapons.worldGunVisible,{timeout:10000}).toBe(true);
+  console.log('RIG_BONES',JSON.stringify((await state()).boneDebug));
   const before=await state();
   expect(before.mode).toBe(2);
   await page.keyboard.down('w');

@@ -449,7 +449,7 @@ if(new URLSearchParams(location.search).has('debug')){
    depth:WATER_LEVEL-ground(player.position.x,player.position.z),
    x:player.position.x,z:player.position.z,y:player.position.y,groundY:ground(player.position.x,player.position.z),
    swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug(),
-   pointerLocked,characterClipNames,activeCharacterState,characterAssetError
+   pointerLocked,yaw,pitch,characterClipNames,activeCharacterState,characterAssetError
   }),
   teleportLake:()=>{
    player.position.set(LAKE_X,ground(LAKE_X,LAKE_Z),LAKE_Z);

@@ -266,6 +266,12 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       worldGunChildren:gunHolders.get(weapon().id)?.children.length||0,
       worldGunSize:gunHolders.get(weapon().id)?.userData.geometrySize||null,
       worldGunScale:gunHolders.get(weapon().id)?.userData.scale||null,
+      worldGunBarrelAxis:gunHolders.get(weapon().id)?.children[0]?.children[0]?
+        new THREE.Vector3(0,0,-1).applyQuaternion(
+          gunHolders.get(weapon().id).children[0].children[0].getWorldQuaternion(new THREE.Quaternion())
+        ).toArray():null,
+      worldGunPosition:gunHolders.get(weapon().id)?
+        gunHolders.get(weapon().id).getWorldPosition(new THREE.Vector3()).toArray():null,
       shotCount
     };
   }

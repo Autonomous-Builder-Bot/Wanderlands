@@ -30,10 +30,20 @@ export function loadRifleAnimations(character){
   new GLTFLoader().load(URL,gltf=>{
    try{
     const sourceMesh=skinned(gltf.scene),targetMesh=skinned(character);
-    if(!sourceMesh||!targetMesh)throw new Error('CC0 ranged asset or character has no usable skeleton');
-    // The source glTF contains real skeleton and animation; no clips are synthesized.
-    gltf.scene.skeleton=sourceMesh.skeleton;
-    const sourceBones=new Map(sourceMesh.skeleton.bones.map(b=>[norm(b.name),b.name]));
+    if(!targetMesh)throw new Error('Quaternius target character has no skinned mesh');
+    // KayKit's animation-only GLB exports a hierarchy of animated nodes, but
+    // may not instantiate a SkinnedMesh. SkeletonUtils only needs bones with
+    // names and Object3D matrices, so construct that lookup from the nodes.
+    const neededSourceNames=new Set(['root','hips','spine','chest','head',
+      'upperarml','lowerarml','handl','upperarmr','lowerarmr','handr']);
+    const sourceNodes=[];
+    gltf.scene.traverse(o=>{
+      if(neededSourceNames.has(norm(o.name)))sourceNodes.push(o);
+    });
+    if(sourceNodes.length<8)throw new Error('KayKit node hierarchy missing: '+JSON.stringify(
+      sourceNodes.map(b=>b.name)));
+    gltf.scene.skeleton=sourceMesh?.skeleton||{bones:sourceNodes};
+    const sourceBones=new Map(gltf.scene.skeleton.bones.map(b=>[norm(b.name),b.name]));
     const targetBones=new Map(targetMesh.skeleton.bones.map(b=>[norm(b.name),b.name]));
     const names={},mapped=[];
     for(const [targetRole,sourceRole] of ROLES){

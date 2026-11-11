@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createWeaponSystem } from './weapons.js';
+import { loadRifleAnimations } from './rifleAnimations.js';
 try {
 const urlSeed=Number(new URLSearchParams(location.search).get('seed'));
 const seed=Number.isFinite(urlSeed)&&urlSeed!==0?urlSeed:2026;
@@ -192,6 +193,7 @@ for(const sign of [-1,1]){
 // Unlike Soldier.glb, the source contains its own swim/tread/pistol/jump animations.
 // Temporary look only: final art can be replaced once its rig is validated.
 let characterMixer=null,characterActions=null,characterAssetError=null,characterClipNames=[],characterModel=null;
+let rifleAnimations=null,rifleAnimationError=null;
 // The Quaternius GLB is authored facing +Z, while Wanderlands movement is -Z.
 // Correct the art root only, leaving camera yaw and movement physics unchanged.
 const modelFacingRoot=new THREE.Group();modelFacingRoot.name='VisualFacingCorrection';
@@ -253,6 +255,12 @@ new GLTFLoader().load(CHARACTER_URL,gltf=>{
   }
   characterMixer=mixer;characterActions=actions;
   weapons.bindCharacter(model);
+  // Keep the Quaternius pistol clips. The rifle uses separate CC0 two-hand
+  // animations, retargeted to this model's arm bones once the GLB loads.
+  loadRifleAnimations(model).then(loaded=>{rifleAnimations=loaded;}).catch(error=>{
+    rifleAnimationError=String(error?.message||error);
+    console.warn('KayKit rifle animation retarget failed:',error);
+  });
   fallbackAvatar.visible=false;
 },undefined,error=>{
  characterAssetError=String(error?.message||error);
@@ -264,10 +272,10 @@ function updateCharacterAnimation(dt,{moving,sprint,swimming,onGround}){
  let state;
  if(swimming)state=moving?'swim':'tread';
  else if(!onGround)state='jump';
- else if(weapon.reloading&&characterActions.pistolReload)state='pistolReload';
- else if(weapon.shotCount!==previousShotCount&&characterActions.pistolShoot){
+ else if(weapon.id==='p226'&&weapon.reloading&&characterActions.pistolReload)state='pistolReload';
+ else if(weapon.id==='p226'&&weapon.shotCount!==previousShotCount&&characterActions.pistolShoot){
    state='pistolShoot';
- }else if(activeCharacterState==='pistolShoot'&&characterActions.pistolShoot&&
+ }else if(weapon.id==='p226'&&activeCharacterState==='pistolShoot'&&characterActions.pistolShoot&&
           characterActions.pistolShoot.time<Math.min(.38,characterActions.pistolShoot.getClip().duration-.04)){
    state='pistolShoot';
  }else if(moving)state=sprint?'run':'walk';
@@ -290,6 +298,12 @@ function updateCharacterAnimation(dt,{moving,sprint,swimming,onGround}){
    action.setEffectiveWeight(THREE.MathUtils.lerp(action.getEffectiveWeight(),target,blend));
  }
  characterMixer.update(dt);
+ // A separate mixer overrides only rifle upper-body bones after the usual
+ // locomotion mixer. It never runs while a pistol is equipped or swimming.
+ rifleAnimations?.update(dt,{
+   equipped:weapon.id==='m4a1',swimming,reloading:weapon.reloading,
+   shotCount:weapon.shotCount,reloadDuration:weapon.reloadDuration
+ });
 }
 const keys=new Set(),clock=new THREE.Clock(),ahead=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3(),velocity=new THREE.Vector3();
 const skyColor=new THREE.Color(0x9ec6d4),airFog=new THREE.Color(0xa7c7bb),underwaterFog=new THREE.Color(0x236879);
@@ -417,7 +431,7 @@ function animate(){
  const nativeSwim=swimming&&characterActions?.swim&&characterActions?.tread;
  // Quaternius strokes move limbs, while the character root needs a horizontal
  // surface-swim pose. Treading water remains upright.
- const targetTilt=swimming?(moving?-1.36:0):0;
+ const targetTilt=swimming?(moving?-.50:0):0;
  rigPivot.rotation.x=THREE.MathUtils.lerp(rigPivot.rotation.x,targetTilt,Math.min(1,dt*5));
  updateCharacterAnimation(dt,{moving,sprint,swimming,onGround});
  for(let i=0;i<2;i++){
@@ -467,7 +481,8 @@ if(new URLSearchParams(location.search).has('debug')){
    depth:WATER_LEVEL-ground(player.position.x,player.position.z),
    x:player.position.x,z:player.position.z,y:player.position.y,groundY:ground(player.position.x,player.position.z),
    swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug(),
-   pointerLocked,yaw,pitch,playerYaw:player.rotation.y,
+   pointerLocked,yaw,pitch,playerYaw:player.rotation.y,swimBodyTilt:rigPivot.rotation.x,
+   rifleAnimations:rifleAnimations?.debug()||{ready:false,error:rifleAnimationError},
    modelFacingRootYaw:modelFacingRoot.rotation.y,
    visualForward:characterModel?new THREE.Vector3(0,0,1).applyQuaternion(characterModel.getWorldQuaternion(new THREE.Quaternion())).toArray():null,
    cameraGroundForward:[-Math.sin(yaw),0,-Math.cos(yaw)],

@@ -5,7 +5,7 @@ test('first-person mouse lock and actual animated swim and third-person weapons'
  page.on('pageerror',e=>errors.push(e.message));
  page.on('console',m=>{if(m.type()==='warning'||m.type()==='error')console.log('BROWSER',m.type(),m.text())});
  page.on('requestfailed',r=>console.log('RESOURCE FAIL',r.url(),r.failure()?.errorText));
- await page.goto('/?debug=1',{waitUntil:'domcontentloaded'});
+ await page.goto('/?debug=1&mode=guns',{waitUntil:'domcontentloaded'});
  const state=()=>page.evaluate(()=>window.__wanderlandsDebug?.state());
  await expect.poll(async()=> (await state())?.characterClipNames.length>=20,{timeout:90000}).toBe(true);
  const loaded=await state();

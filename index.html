@@ -10,7 +10,7 @@
 #hud strong{font-size:19px;letter-spacing:2px}#help{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:11px 16px;background:#0b1823b8;border-radius:10px;text-align:center;max-width:95vw}
 #error{display:none;position:fixed;top:25%;left:10%;right:10%;background:#411;color:#fee;padding:20px;white-space:pre-wrap}
 </style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
 </head>
 <body>
 <div id="hud"><strong>WANDERLANDS</strong><div id="view">Third person</div><div id="stats">Generating world...</div><div id="seed"></div></div>
@@ -18,6 +18,8 @@
 <div id="error"></div>
 <script type="module">
 import * as THREE from 'three';
+import { Water } from 'three/addons/objects/Water.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 try {
 const urlSeed=Number(new URLSearchParams(location.search).get('seed'));
 const seed=Number.isFinite(urlSeed)&&urlSeed!==0?urlSeed:2026;
@@ -117,37 +119,32 @@ function makeChunk(cx,cz){
  scene.add(group);chunks.set(id,group);
 }
 // World-aligned animated water uses a GPU vertex displacement and subtle surface highlights.
-const waterMaterial=new THREE.ShaderMaterial({
- uniforms:{uTime:{value:0}},
- vertexShader:String.raw`
- uniform float uTime;
- varying vec3 vWorld;
- varying float vWave;
- void main(){
-  vec3 p=position;
-  float wave=.14*sin(p.x*.052+uTime*.85)+.10*sin(p.y*.081-uTime*.67);
-  p.z+=wave;
-  vec4 world=modelMatrix*vec4(p,1.0);
-  vWorld=world.xyz;vWave=wave;
-  gl_Position=projectionMatrix*viewMatrix*world;
- }`,
- fragmentShader:String.raw`
- uniform float uTime;
- varying vec3 vWorld;
- varying float vWave;
- void main(){
-  float ripple=sin(vWorld.x*.26+uTime*1.35)*sin(vWorld.z*.21-uTime*.9);
-  float glint=pow(max(0.0,ripple),10.0);
-  vec3 color=mix(vec3(.047,.27,.35),vec3(.10,.43,.52),.5+.5*ripple);
-  color+=vec3(.16,.19,.16)*glint+vec3(.035)*vWave;
-  gl_FragColor=vec4(color,.83);
- }`,
- transparent:true,depthWrite:false,side:THREE.DoubleSide
+// Official Three.js Water add-on (r169, MIT). The plane is horizontal,
+// and the repeated normal map drives the animated reflected highlights.
+// Gameplay buoyancy lives in animate(); the Water class is a renderer only.
+const waterNormals=new THREE.TextureLoader().load(
+ 'https://cdn.jsdelivr.net/npm/three@0.169.0/examples/textures/waternormals.jpg',
+ texture=>{texture.wrapS=texture.wrapT=THREE.RepeatWrapping;},
+ undefined,
+ error=>console.warn('Water normal texture did not load:',error)
+);
+const water=new Water(new THREE.CircleGeometry(55,128),{
+ textureWidth:256,textureHeight:256,
+ waterNormals,
+ sunDirection:new THREE.Vector3(.5,1,.4).normalize(),
+ sunColor:0xffefcb,
+ waterColor:0x14465a,
+ distortionScale:2.8,
+ alpha:.84,
+ fog:true
 });
-const water=new THREE.Mesh(new THREE.PlaneGeometry(1150,1150,110,110),waterMaterial);
-water.position.y=WATER_LEVEL+.04;water.renderOrder=1;scene.add(water);
-
-
+// CircleGeometry is in local XY; rotate it to lie in the world XZ plane.
+water.rotation.x=-Math.PI/2;
+water.position.set(LAKE_X,WATER_LEVEL+.04,LAKE_Z);
+water.material.transparent=true;
+water.material.depthWrite=false;
+water.renderOrder=1;
+scene.add(water);
 function stream(x,z){
  const cx=Math.floor((x+CHUNK/2)/CHUNK),cz=Math.floor((z+CHUNK/2)/CHUNK);
  for(let a=cx-RADIUS;a<=cx+RADIUS;a++)for(let b=cz-RADIUS;b<=cz+RADIUS;b++)makeChunk(a,b);
@@ -167,22 +164,51 @@ const player=new THREE.Group();scene.add(player);
 // Rotating about the torso creates a believable surface-swimming pose.
 const rigPivot=new THREE.Group();rigPivot.position.y=1.5;player.add(rigPivot);
 const avatar=new THREE.Group();avatar.position.y=-1.5;rigPivot.add(avatar);
+const fallbackAvatar=new THREE.Group();avatar.add(fallbackAvatar);
 const shirt=new THREE.MeshStandardMaterial({color:0x425e72}),skin=new THREE.MeshStandardMaterial({color:0xc4906e});
 const trousers=new THREE.MeshStandardMaterial({color:0x3b3735}),boots=new THREE.MeshStandardMaterial({color:0x22292a});
 function piece(parent,geo,mat,x,y,z){const p=new THREE.Mesh(geo,mat);p.position.set(x,y,z);p.castShadow=true;parent.add(p);return p}
-piece(avatar,new THREE.CapsuleGeometry(.34,.62,4,8),shirt,0,1.65,0);
-piece(avatar,new THREE.SphereGeometry(.28,12,8),skin,0,2.66,0);
+piece(fallbackAvatar,new THREE.CapsuleGeometry(.34,.62,4,8),shirt,0,1.65,0);
+piece(fallbackAvatar,new THREE.SphereGeometry(.28,12,8),skin,0,2.66,0);
 const legs=[],arms=[];
 for(const sign of [-1,1]){
  const arm=new THREE.Group();arm.position.set(sign*.48,2.15,0);
- piece(arm,new THREE.CapsuleGeometry(.12,.58,4,8),shirt,0,-.41,0);avatar.add(arm);arms.push(arm);
+ piece(arm,new THREE.CapsuleGeometry(.12,.58,4,8),shirt,0,-.41,0);fallbackAvatar.add(arm);arms.push(arm);
  const leg=new THREE.Group();leg.position.set(sign*.2,1.15,0);
  piece(leg,new THREE.CapsuleGeometry(.15,.71,4,8),trousers,0,-.47,0);
  piece(leg,new THREE.BoxGeometry(.34,.19,.52),boots,0,-.91,-.09);
- avatar.add(leg);legs.push(leg);
+ fallbackAvatar.add(leg);legs.push(leg);
 }
 
 
+// Temporary freely available, rigged character from the official Three.js examples.
+// It is deliberately isolated under avatar so we can replace the model later.
+let characterMixer=null,characterActions=null;
+new GLTFLoader().load(
+ 'https://cdn.jsdelivr.net/npm/three@0.169.0/examples/models/gltf/Soldier.glb',
+ gltf=>{
+  const clips=Object.fromEntries(gltf.animations.map(clip=>[clip.name.toLowerCase(),clip]));
+  if(!clips.idle||!clips.walk||!clips.run){
+   console.warn('Character is missing expected Idle/Walk/Run clips');
+   return; // Keep the existing placeholder instead of leaving a broken player.
+  }
+  const model=gltf.scene;
+  model.traverse(object=>{if(object.isMesh){object.castShadow=true;object.frustumCulled=false;}});
+  avatar.add(model);
+  const mixer=new THREE.AnimationMixer(model);
+  const actions={
+   idle:mixer.clipAction(clips.idle),
+   walk:mixer.clipAction(clips.walk),
+   run:mixer.clipAction(clips.run)
+  };
+  for(const [key,action] of Object.entries(actions)){
+   action.setEffectiveWeight(key==='idle'?1:0);
+   action.play();
+  }
+  characterMixer=mixer;characterActions=actions;
+  fallbackAvatar.visible=false;
+ },undefined,error=>console.warn('Character model failed to load; retaining fallback:',error)
+);
 const keys=new Set(),clock=new THREE.Clock(),ahead=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3(),velocity=new THREE.Vector3();
 const skyColor=new THREE.Color(0x9ec6d4),airFog=new THREE.Color(0xa7c7bb),underwaterFog=new THREE.Color(0x236879);
 let mode=2,yaw=-.95,pitch=.35,drag=false,step=0,swimDive=0,swimming=false,wading=false,elapsed=0;
@@ -245,6 +271,16 @@ function animate(){
   player.position.y=THREE.MathUtils.lerp(player.position.y,groundY,Math.min(1,dt*10));
  }
  rigPivot.rotation.x=THREE.MathUtils.lerp(rigPivot.rotation.x,swimming?-1.05:0,Math.min(1,dt*5));
+ if(characterMixer&&characterActions){
+  // Use the model's genuine authored clips; there is no fake clip synthesis.
+  // A proper licensed swim clip will replace the idle pose while swimming.
+  const active=swimming?'idle':moving?(sprint?'run':'walk'):'idle';
+  const blend=Math.min(1,dt*7);
+  for(const [key,action] of Object.entries(characterActions)){
+   action.setEffectiveWeight(THREE.MathUtils.lerp(action.getEffectiveWeight(),key===active?1:0,blend));
+  }
+  characterMixer.update(dt);
+ }
  for(let i=0;i<2;i++){
   const phase=step+i*Math.PI;
   const legAngle=swimming?Math.sin(phase*1.3)*.32:moving?Math.sin(phase)*(wading?.32:.5):0;
@@ -254,8 +290,7 @@ function animate(){
   arms[i].rotation.z=THREE.MathUtils.lerp(arms[i].rotation.z,swimming?(i===0?-.38:.38):0,Math.min(1,dt*8));
  }
  stream(player.position.x,player.position.z);
- water.position.x=player.position.x;water.position.z=player.position.z;
- waterMaterial.uniforms.uTime.value=elapsed;
+ water.material.uniforms.time.value+=dt;
  sun.position.set(player.position.x+55,player.position.y+95,player.position.z+30);
  sun.target.position.copy(player.position);sun.target.updateMatrixWorld();
  const p=player.position;let target;

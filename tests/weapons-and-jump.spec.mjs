@@ -39,17 +39,20 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  await page.locator('canvas').click({position:{x:150,y:110}});
  await expect.poll(async()=> (await state()).weapons.ammo).toBe(ammoBefore-1);
 
+ await page.keyboard.press('2');
+ await expect.poll(async()=> (await state()).pointerLocked,{timeout:3500}).toBe(false);
  await page.keyboard.press('KeyR');
  await expect.poll(async()=> (await state()).weapons.reloading).toBe(true);
  console.log('During reload:',JSON.stringify((await state()).weapons));
- // Must play an authored reload animation; a timer-only reload is insufficient.
+ // Must animate both donor first-person hand tracks and native third-person pistol reload.
  await expect.poll(async()=> (await state()).weapons.clipPlaying,{timeout:2500}).toBe(true);
+ await expect.poll(async()=> (await state()).activeCharacterState,{timeout:2500}).toBe('pistolReload');
+ await expect.poll(async()=> (await state()).animationWeights.reload,{timeout:5000}).toBeGreaterThan(.25);
+ await page.screenshot({path:testInfo.outputPath('third-person-reload.png')});
  await expect.poll(async()=> (await state()).weapons.reloading,{timeout:15000}).toBe(false);
  expect((await state()).weapons.ammo).toBe(12);
  expect((await state()).weapons.reserve).toBeLessThan(60);
 
- await page.keyboard.press('2');
- await expect.poll(async()=> (await state()).pointerLocked,{timeout:3500}).toBe(false);
  await page.keyboard.press('KeyQ');
  await expect.poll(async()=> (await state()).weapons.active).toBe('m4a1');
  expect((await state()).weapons.modelVisible).toBe(true);

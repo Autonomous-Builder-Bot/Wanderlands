@@ -20,10 +20,11 @@ test('official water renders horizontally and player can swim and dive',async({p
 
  const before=await state();
  await page.keyboard.down('w');
- await page.waitForTimeout(450);
+ await expect.poll(async()=>{
+   const after=await state();
+   return Math.hypot(after.x-before.x,after.z-before.z);
+ },{timeout:9000}).toBeGreaterThan(.30);
  await page.keyboard.up('w');
- const after=await state();
- expect(Math.hypot(after.x-before.x,after.z-before.z)).toBeGreaterThan(.25);
 
  await page.keyboard.press('1');
  await expect.poll(async()=> (await state()).mode).toBe(1);

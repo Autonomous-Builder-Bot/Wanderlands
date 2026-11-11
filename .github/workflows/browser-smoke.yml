@@ -1,7 +1,7 @@
 name: Browser smoke test
 on:
   push:
-    branches: [main, fix/swim-angle-rifle-animation]
+    branches: [main, fix/weapon-grip-swim-angle]
   workflow_dispatch:
 concurrency:
   group: wanderlands-browser-${{ github.ref }}

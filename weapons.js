@@ -167,7 +167,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   // a visible single-frame elbow snap each time the animation changes.
   const renderedArmPose={R:null,L:null};
   let rifleIKActive=false,rifleIKReleasing=false;
-  const smoothedResult=new THREE.Quaternion();
+  const smoothedResult=new THREE.Quaternion(),authoredArmQuat=new THREE.Quaternion();
   function smoothArmPose(side,chain,dt,{release=false}={}){
     const bones=[chain.upper,chain.elbow],prior=renderedArmPose[side];
     if(!prior){
@@ -194,7 +194,8 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     // from an unrelated elbow bend on every frame.
     for(let i=0;i<2;i++){
       const joint=i===0?chain.upper:chain.elbow;
-      joint.quaternion.copy(prior[i]).slerp(joint.quaternion,.20).normalize();
+      authoredArmQuat.copy(joint.quaternion);
+      joint.quaternion.copy(prior[i]).slerp(authoredArmQuat,.20).normalize();
     }
     chain.upper.updateWorldMatrix(true,true);
   }

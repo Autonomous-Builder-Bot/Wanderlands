@@ -185,7 +185,7 @@ for(const sign of [-1,1]){
 
 const keys=new Set(),clock=new THREE.Clock(),ahead=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3(),velocity=new THREE.Vector3();
 const skyColor=new THREE.Color(0x9ec6d4),airFog=new THREE.Color(0xa7c7bb),underwaterFog=new THREE.Color(0x236879);
-let mode=2,yaw=.6,pitch=.35,drag=false,step=0,swimDive=0,swimming=false,wading=false,elapsed=0;
+let mode=2,yaw=-.95,pitch=.35,drag=false,step=0,swimDive=0,swimming=false,wading=false,elapsed=0;
 function view(n){
  if(n<1||n>3)return;
  mode=n;document.querySelector('#view').textContent=['','Top-down','Third-person','First-person'][n];

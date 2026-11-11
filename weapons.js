@@ -216,7 +216,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     return handPosition.distanceTo(target);
   }
   const gripRight=new THREE.Vector3(-.17,1.54,.45);
-  const gripLeft=new THREE.Vector3(.13,1.54,.65);
+  const gripLeft=new THREE.Vector3(.13,1.49,.52);
   const rightWorld=new THREE.Vector3(),leftWorld=new THREE.Vector3();
   function updateRifleHands({swimming,reloading}){
     if(swimming||selected!==1||!bodyRoot||!armChains.R||!armChains.L)return;

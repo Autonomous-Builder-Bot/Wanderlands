@@ -1,7 +1,7 @@
 name: Browser smoke test
 on:
   push:
-    branches: [main, fix/stable-rifle-grip-swim-height]
+    branches: [main, feature/medieval-loadouts]
   workflow_dispatch:
 concurrency:
   group: wanderlands-browser-${{ github.ref }}

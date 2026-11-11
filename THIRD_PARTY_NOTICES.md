@@ -103,3 +103,21 @@ only while the M4A1 rifle is equipped; original pistol clips are retained.
 
 No KayKit assets have been copied into this repository: the GLB is loaded from
 a pinned upstream URL.
+
+## Medieval test mode (CC0)
+
+Original creator: Kay Lousberg (KayKit). KayKit Adventurers and KayKit
+Character Animations are CC0 1.0 (free for personal and commercial use).
+- Official character and prop pack: https://kaylousberg.itch.io/kaykit-adventurers
+- Official animations: https://kaylousberg.itch.io/kaykit-character-animations
+- Knight GLB with 1H Sword and Round Shield (optimized by tactical-slash):
+  https://github.com/sion-rgb/tactical-slash/blob/8bf8d835cb7afa7cb3f4d893b0966c6b4e9b7727/assets/characters/player/player_swordsman.glb
+- Animation library source (KayKit original clips in Rig_Medium GLBs):
+  https://github.com/NoLimitNexus/game-models/tree/d188ebf93ceb3c4b95ba9bc6b1856cd1fd34915d/library/animations
+- Greatsword model from creator's official GitHub:
+  https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/blob/672074b73ba276876a19e8816ecdc5241817ab47/addons/kaykit_character_pack_adventures/Assets/gltf/sword_2handed.gltf
+
+Files are referenced from fixed source commits, not embedded as modified
+assets in this repository. The game uses the free CC0 art without claiming
+original authorship. Third-party repositories may add their own integration
+code licenses; this project uses only the original CC0 models and animations.

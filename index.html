@@ -14,7 +14,7 @@
 </head>
 <body>
 <div id="hud"><strong>WANDERLANDS</strong><div id="view">Third person</div><div id="stats">Generating world...</div><div id="seed"></div></div>
-<div id="help">WASD move · Space jump/swim up · Shift sprint · 1/2/3 views · First-person: click to lock mouse, Esc release · Click fire · R reload · Q switch weapon · C dive · N new world</div>
+<div id="help">WASD move · Space jump/swim · Shift sprint · 1/2/3 views · M medieval/guns · Medieval: Q sword+shield/greatsword, click attack, right-click block · Guns: Q switch, R reload · N new world</div>
 <div id="error"></div>
 <script type="module">
 import * as THREE from 'three';
@@ -22,6 +22,7 @@ import { Water } from 'three/addons/objects/Water.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createWeaponSystem } from './weapons.js';
 import { loadRifleAnimations } from './rifleAnimations.js';
+import { createMedievalCombat } from './medieval.js';
 try {
 const urlSeed=Number(new URLSearchParams(location.search).get('seed'));
 const seed=Number.isFinite(urlSeed)&&urlSeed!==0?urlSeed:2026;
@@ -198,6 +199,7 @@ let rifleAnimations=null,rifleAnimationError=null;
 // Correct the art root only, leaving camera yaw and movement physics unchanged.
 const modelFacingRoot=new THREE.Group();modelFacingRoot.name='VisualFacingCorrection';
 modelFacingRoot.rotation.y=Math.PI;avatar.add(modelFacingRoot);
+const medieval=createMedievalCombat({parent:modelFacingRoot});
 let activeCharacterState='idle',previousShotCount=0;
 const CHARACTER_URL='https://raw.githubusercontent.com/call-me-sensei-app/toonlab/2e354c52e5539e33fb3d8f339645b47e1ac937ca/public/characters/mannequin.glb';
 new GLTFLoader().load(CHARACTER_URL,gltf=>{
@@ -312,6 +314,7 @@ let pointerLocked=false;
 let verticalSpeed=0,onGround=true,jumpQueued=false,jumpCount=0,wasSwimming=false;
 function view(n){
  if(n<1||n>3)return;
+ if(medieval.active&&n===3)n=2; // Medieval prototype shows the rigged third-person character.
  mode=n;document.querySelector('#view').textContent=['','Top-down','Third-person','First-person'][n];
  avatar.visible=n!==3;
  if(n!==3&&document.pointerLockElement===renderer.domElement)document.exitPointerLock();
@@ -319,16 +322,24 @@ function view(n){
  updateMouseHint();
 }
 window.addEventListener('keydown',e=>{
- if(['KeyW','KeyS','KeyA','KeyD','ShiftLeft','Space','KeyC','ControlLeft','Digit1','Digit2','Digit3','KeyR','KeyN','KeyQ'].includes(e.code))e.preventDefault();
+ if(['KeyW','KeyS','KeyA','KeyD','ShiftLeft','Space','KeyC','ControlLeft','Digit1','Digit2','Digit3','KeyR','KeyN','KeyQ','KeyM'].includes(e.code))e.preventDefault();
  keys.add(e.code);
  if(['Digit1','Digit2','Digit3'].includes(e.code))view(Number(e.code.slice(-1)));
  if(e.code==='Space'&&!e.repeat)jumpQueued=true;
- if(e.code==='KeyR'&&!e.repeat)weapons.reload();
- if(e.code==='KeyQ'&&!e.repeat)weapons.switchWeapon();
+ if(e.code==='KeyM'&&!e.repeat){
+   medieval.setActive(!medieval.active);
+   weapons.setMedievalMode(medieval.active);
+   if(medieval.active)view(2);
+ }
+ if(e.code==='KeyR'&&!e.repeat&&!medieval.active)weapons.reload();
+ if(e.code==='KeyQ'&&!e.repeat){
+   if(medieval.active)medieval.switchStyle();
+   else weapons.switchWeapon();
+ }
  if(e.code==='KeyN'){const u=new URL(location.href);u.searchParams.set('seed',String(Math.floor(Math.random()*1e8)+1));location.assign(u.href)}
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
-window.addEventListener('blur',()=>{keys.clear();weapons.setTrigger(false);});
+window.addEventListener('blur',()=>{keys.clear();weapons.setTrigger(false);medieval.setBlock(false);});
 const hint=document.createElement('div');
 hint.id='mouse-hint';
 Object.assign(hint.style,{position:'fixed',top:'15%',left:'50%',transform:'translateX(-50%)',
@@ -355,6 +366,12 @@ document.addEventListener('mousemove',e=>{
 });
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 renderer.domElement.addEventListener('pointerdown',e=>{
+ if(medieval.active){
+   if(e.button===0)medieval.attack();
+   if(e.button===2)medieval.setBlock(true);
+   if(mode!==3){drag=true;renderer.domElement.setPointerCapture(e.pointerId);}
+   return;
+ }
  if(mode===3){
    if(!pointerLocked){lockFirstPerson();return;}
    if(e.button===0)weapons.setTrigger(true);
@@ -363,8 +380,8 @@ renderer.domElement.addEventListener('pointerdown',e=>{
    if(e.button===0)weapons.setTrigger(true);
  }
 });
-renderer.domElement.addEventListener('pointerup',()=>{drag=false;weapons.setTrigger(false)});
-renderer.domElement.addEventListener('pointercancel',()=>{drag=false;weapons.setTrigger(false)});
+renderer.domElement.addEventListener('pointerup',()=>{drag=false;weapons.setTrigger(false);medieval.setBlock(false)});
+renderer.domElement.addEventListener('pointercancel',()=>{drag=false;weapons.setTrigger(false);medieval.setBlock(false)});
 renderer.domElement.addEventListener('pointermove',e=>{
  if(!drag||mode===3)return;
  yaw-=e.movementX*.005;
@@ -472,7 +489,12 @@ function animate(){
  scene.fog.density=submerged?.036:.0035;
  scene.background.copy(submerged?underwaterFog:skyColor);
  weapons.update(dt,{mode,swimming,moving,sprint,playerYaw:player.rotation.y});
- const label=swimming?(swimDive>.25?'Diving':'Swimming'):!onGround?'Jumping':wading?'Wading':moving?(sprint?'Sprinting':'Walking'):'Exploring';
+ medieval.update(dt,{moving,sprint,onGround,swimming});
+ if(characterModel)characterModel.visible=!medieval.active||swimming;
+ if(fallbackAvatar.visible)fallbackAvatar.visible=!medieval.active;
+ const label=swimming?(swimDive>.25?'Diving':'Swimming'):
+   medieval.active?'Medieval '+(medieval.debug().style==='greatsword'?'Greatsword':'Sword + Shield'):
+   !onGround?'Jumping':wading?'Wading':moving?(sprint?'Sprinting':'Walking'):'Exploring';
  document.querySelector('#stats').textContent=label+' · X '+p.x.toFixed(0)+' · Z '+p.z.toFixed(0)+' · '+chunks.size+' chunks';
  renderer.render(scene,camera);
 }
@@ -488,7 +510,7 @@ if(new URLSearchParams(location.search).has('debug')){
    characterLoaded:!!characterMixer,
    depth:WATER_LEVEL-ground(player.position.x,player.position.z),
    x:player.position.x,z:player.position.z,y:player.position.y,groundY:ground(player.position.x,player.position.z),
-   swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug(),
+   swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug(),medieval:medieval.debug(),
    pointerLocked,yaw,pitch,playerYaw:player.rotation.y,swimBodyTilt:rigPivot.rotation.x,swimVisualLift:rigPivot.position.y-1.5,
    rifleAnimations:rifleAnimations?.debug()||{ready:false,error:rifleAnimationError},
    modelFacingRootYaw:modelFacingRoot.rotation.y,

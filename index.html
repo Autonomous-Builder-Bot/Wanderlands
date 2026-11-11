@@ -435,8 +435,12 @@ function animate(){
  // forward swimming. Vertical swim input pitches the avatar naturally, while
  // first-person camera pitch and all water physics remain unchanged.
  const verticalSwim=keys.has('Space')?1:(keys.has('KeyC')||keys.has('ControlLeft')?-1:0);
- const targetTilt=swimming?(moving?-.15+verticalSwim*.20:0):0;
+ // Another five degrees head-up during level swimming. Keep the existing
+ // ascent/descent pitch and the first-person camera entirely unchanged.
+ const targetTilt=swimming?(moving?-.15+THREE.MathUtils.degToRad(5)+verticalSwim*.20:0):0;
  rigPivot.rotation.x=THREE.MathUtils.lerp(rigPivot.rotation.x,targetTilt,Math.min(1,dt*5));
+ // Visual-only lift: avoids altering buoyancy, dive depth, or first-person eyes.
+ rigPivot.position.y=THREE.MathUtils.lerp(rigPivot.position.y,1.5+(swimming?.09:0),Math.min(1,dt*5));
  updateCharacterAnimation(dt,{moving,sprint,swimming,onGround});
  for(let i=0;i<2;i++){
   const phase=step+i*Math.PI;
@@ -485,7 +489,7 @@ if(new URLSearchParams(location.search).has('debug')){
    depth:WATER_LEVEL-ground(player.position.x,player.position.z),
    x:player.position.x,z:player.position.z,y:player.position.y,groundY:ground(player.position.x,player.position.z),
    swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug(),
-   pointerLocked,yaw,pitch,playerYaw:player.rotation.y,swimBodyTilt:rigPivot.rotation.x,
+   pointerLocked,yaw,pitch,playerYaw:player.rotation.y,swimBodyTilt:rigPivot.rotation.x,swimVisualLift:rigPivot.position.y-1.5,
    rifleAnimations:rifleAnimations?.debug()||{ready:false,error:rifleAnimationError},
    modelFacingRootYaw:modelFacingRoot.rotation.y,
    visualForward:characterModel?new THREE.Vector3(0,0,1).applyQuaternion(characterModel.getWorldQuaternion(new THREE.Quaternion())).toArray():null,

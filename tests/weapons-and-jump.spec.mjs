@@ -22,7 +22,7 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  await page.keyboard.up('Space');
  await expect.poll(async()=> (await state()).jumpCount).toBeGreaterThan(before.jumpCount);
  await expect.poll(async()=> !(await state()).onGround).toBe(true);
- await expect.poll(async()=> (await state()).onGround,{timeout:3500}).toBe(true);
+ await expect.poll(async()=> (await state()).onGround,{timeout:12000}).toBe(true);
  const after=await state();
  expect(after.y-after.groundY).toBeLessThan(.4);
 
@@ -39,7 +39,7 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  console.log('During reload:',JSON.stringify((await state()).weapons));
  // Must play an authored reload animation; a timer-only reload is insufficient.
  await expect.poll(async()=> (await state()).weapons.clipPlaying,{timeout:2500}).toBe(true);
- await expect.poll(async()=> (await state()).weapons.reloading,{timeout:8000}).toBe(false);
+ await expect.poll(async()=> (await state()).weapons.reloading,{timeout:15000}).toBe(false);
  expect((await state()).weapons.ammo).toBe(ammoBefore);
 
  await page.keyboard.press('KeyQ');

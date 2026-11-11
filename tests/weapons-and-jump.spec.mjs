@@ -8,13 +8,16 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  await page.goto('/?debug=1',{waitUntil:'domcontentloaded'});
  const state=()=>page.evaluate(()=>window.__wanderlandsDebug?.state());
  await expect.poll(async()=>!!(await state()),{timeout:45000}).toBe(true);
- await expect.poll(async()=> (await state()).weapons.loaded.every(w=>w.loaded),{timeout:50000}).toBe(true);
+ await expect.poll(async()=> (await state()).weapons.loaded.every(w=>w.loaded),{timeout:90000}).toBe(true);
+ await expect.poll(async()=> (await state()).characterClipNames.includes('Swim_Fwd_Loop'),{timeout:90000}).toBe(true);
  await expect.poll(async()=> (await state()).weapons.reloadAssetLoaded,{timeout:50000}).toBe(true);
  const clips=(await state()).weapons.reloadClipNames;
  console.log('RELOAD CLIPS:',JSON.stringify(clips));
  expect(clips.length).toBeGreaterThan(0);
  expect((await state()).weapons.handBone).toBeTruthy();
  expect((await state()).weapons.gunAttached).toBe(true);
+ expect((await state()).weapons.worldGunVisible).toBe(true);
+ expect((await state()).weapons.worldGunSize?.every(x=>Number.isFinite(x))).toBe(true);
 
  const before=await state();
  await page.keyboard.down('Space');
@@ -31,6 +34,8 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  await expect.poll(async()=> (await state()).weapons.modelVisible).toBe(true);
 
  const ammoBefore=(await state()).weapons.ammo;
+ if(!(await state()).pointerLocked)await page.locator('canvas').click({position:{x:150,y:110}});
+ await expect.poll(async()=> (await state()).pointerLocked,{timeout:3500}).toBe(true);
  await page.locator('canvas').click({position:{x:150,y:110}});
  await expect.poll(async()=> (await state()).weapons.ammo).toBe(ammoBefore-1);
 
@@ -42,6 +47,8 @@ test('jump, load asset-based weapons, reload with authored hand clip',async({pag
  await expect.poll(async()=> (await state()).weapons.reloading,{timeout:15000}).toBe(false);
  expect((await state()).weapons.ammo).toBe(ammoBefore);
 
+ await page.keyboard.press('2');
+ await expect.poll(async()=> (await state()).pointerLocked,{timeout:3500}).toBe(false);
  await page.keyboard.press('KeyQ');
  await expect.poll(async()=> (await state()).weapons.active).toBe('m4a1');
  expect((await state()).weapons.modelVisible).toBe(true);

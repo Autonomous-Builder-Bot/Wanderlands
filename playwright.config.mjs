@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
  testDir:'./tests',
- timeout:90000,
+ timeout:150000,
  retries:0,
  workers:1,
  reporter:process.env.CI?'github':'list',

@@ -38,10 +38,9 @@ test('official water renders horizontally and player can swim and dive',async({p
  const lake=await state();
  expect(lake.depth).toBeGreaterThan(1.8);
  await page.keyboard.down('c');
- await page.waitForTimeout(1100);
- await page.keyboard.up('c');
  await expect.poll(async()=> (await state()).swimDive,{timeout:6000}).toBeGreaterThan(.2);
  const deeper=(await state()).swimDive;
+ await page.keyboard.up('c');
  await page.keyboard.down(' ');
  await page.waitForTimeout(1100);
  await page.keyboard.up(' ');

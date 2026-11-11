@@ -32,6 +32,14 @@ Then open http://localhost:8000/.
 
 Add `?seed=2026` to the URL for a reproducible world.
 
+## Targeted stabilization — rifle and swimming
+- Smoothed third-person rifle upper-arm and elbow IK against the prior rendered pose, warm-starting the next frame without discarding the underlying KayKit rifle clips.
+- Cross-fade rifle aim/shoot/reload animations to avoid abruptly resetting shoulder and wrist tracks.
+- Moved right and left wrist targets slightly closer to achievable grip positions. Browser tests now measure both grip distances and maximum bone angular speed during aim, fire, and reload.
+- Lifted **only the visible character** by about 9 cm while swimming. Raised the forward-swimming body/head angle by an additional 5°, retaining the existing ascend and descend tilt.
+- Kept first-person controls, first-person weapon view, swimming physics, jumping, terrain, and pistol actions unchanged.
+- Positional arm IK is still approximate: it does not align fingers or calculate an anatomically exact stock-to-shoulder rifle contact pose.
+
 ## Third-person grip and swim-pitch adjustments
 - Kept the first-person renderer, mouse lock and camera controls unchanged.
 - Moved the P226's third-person visual forward relative to its animated right hand, without replacing native pistol clips.

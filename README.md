@@ -32,6 +32,14 @@ Then open http://localhost:8000/.
 
 Add `?seed=2026` to the URL for a reproducible world.
 
+## Third-person grip and swim-pitch adjustments
+- Kept the first-person renderer, mouse lock and camera controls unchanged.
+- Moved the P226's third-person visual forward relative to its animated right hand, without replacing native pistol clips.
+- Mounted the M4A1 in front of the chest instead of hanging it from the retargeted wrist. A lightweight CCD two-bone IK pass places both wrists near real grip targets. KayKit's CC0 rifle aim, fire and reload clips remain active; the support hand is released during reload.
+- Adjusted chest height and foregrip targets after reviewing actual Chromium screenshots and measuring wrist-to-grip errors.
+- Raised the level swimming pose by roughly 20 degrees, with additional head-up/head-down pitch when swimming upward or diving. First-person swimming is unchanged.
+- This is positional wrist IK, not full hand/finger IK, and hand orientation still needs refinement for final-quality animation.
+
 ## Targeted rifle and swimming corrections
 - Reduce the extra forward body tilt while swimming, so the swimmer does not look straight down; underwater movement, water rendering, and authored Swim_Fwd_Loop remain unchanged
 - Keep all existing Quaternius pistol idle, shooting, and reload clips for the P226

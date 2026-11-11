@@ -21,7 +21,8 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   fill.position.set(0,.1,-.5);fpRoot.add(fill);
   const models=new Map(),gunMeshes=new Map(),gunHolders=new Map();
   const weapons=SPECS.map(x=>({...x,modelLoaded:false,assetError:null}));
-  let selected=0, character=null, boundHand=null;
+  let selected=0, character=null, boundHand=null,bodyRoot=null;
+  const armChains={};
   let shotCount=0,swimmingState=false;
   let activeReload=null, reloadTime=0, cooldown=0, recoil=0, muzzleTime=0, heldFire=false;
   let reloadScene=null,reloadMixer=null,reloadClips=[],reloadAction=null,reloadError=null;
@@ -51,7 +52,17 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
               bones.find(o=>/hand[_.]?r(ight)?$/i.test(o.name))||
               bones.find(o=>/hand/i.test(o.name)&&/(right|[_ .]r$)/i.test(o.name))||null;
     if(!boundHand)console.warn('Rig hand bone not found; using approximate body mount',bones.map(b=>b.name).slice(-30));
-    // Hands on the temporary Soldier rig follow authored idle/walk/run clips.
+    // Model root is already oriented by modelFacingRoot, shared with the rig.
+    bodyRoot=model.parent;
+    const find=(side,part)=>bones.find(b=>{
+      const name=b.name.toLowerCase().replace(/[^a-z]/g,'');
+      return name===('def'+part+side).toLowerCase();
+    });
+    for(const side of ['L','R']){
+      const upper=find(side,'upperarm'),elbow=find(side,'forearm'),hand=find(side,'hand');
+      if(upper&&elbow&&hand)armChains[side]={upper,elbow,hand};
+      else console.warn('Incomplete arm IK chain',side);
+    }
     for(const w of weapons)attachWorldGun(w.id);
   }
 
@@ -61,15 +72,20 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     const old=gunHolders.get(id);if(old)old.parent?.remove(old);
     const holder=new THREE.Group();
     holder.name='Held_'+id;
-    if(boundHand) {
+    if(id==='m4a1'&&bodyRoot) {
+      // Rifle is supported in front of the chest, not suspended from the
+      // retargeted wrist. A later IK pass brings both real hands onto its grips.
+      bodyRoot.add(holder);
+      holder.position.set(-.08,1.40,.66);
+      holder.userData.mount='chest';
+    }else if(boundHand) {
       boundHand.add(holder);
-      // Keep the mount tied to the animated hand; source weapon meshes are rigid.
       holder.position.set(0,-.08,.08);
-      holder.rotation.set(0,Math.PI/2,Math.PI/2);
+      holder.userData.mount='hand';
     }else{
       character.add(holder);
-      holder.position.set(.36,1.4,-.26);
-      holder.rotation.set(0,Math.PI,0);
+      holder.position.set(.23,1.60,.53);
+      holder.userData.mount='fallback';
     }
     // Fit the actual donor gun mesh to world scale in its own local frame.
     // This avoids subtracting a world-space bounding-box center inside a bone transform.
@@ -88,6 +104,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     holder.add(normalized);
     gunHolders.set(id,holder);
     holder.userData.gunCopy=copy;
+    holder.userData.gunId=id;
     holder.userData.geometrySize=dimension.toArray();
     holder.userData.scale=scale;
     holder.visible=weapons[selected].id===id&&!swimmingState;
@@ -137,25 +154,89 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   // Visual gun barrel points down -Z. Keep that axis lined up with the
   // character's -Z movement heading, while the position follows its animated
   // right-hand bone. Donor FPS guns and mannequin wrist have different bases.
-  const upAxis=new THREE.Vector3(0,1,0);
-  const handWorldQuat=new THREE.Quaternion();
-  const headingQuat=new THREE.Quaternion();
-  const inverseCopyQuat=new THREE.Quaternion();
+  const upAxis=new THREE.Vector3(0,1,0),identity=new THREE.Quaternion();
+  const headingQuat=new THREE.Quaternion(),parentWorldQuat=new THREE.Quaternion();
+  const inverseCopyQuat=new THREE.Quaternion(),localShift=new THREE.Vector3();
+  const forwardWorld=new THREE.Vector3();
+  const jointPosition=new THREE.Vector3(),handPosition=new THREE.Vector3();
+  const currentVector=new THREE.Vector3(),targetVector=new THREE.Vector3();
+  const worldTurn=new THREE.Quaternion(),localTurn=new THREE.Quaternion();
+  const transformQ=new THREE.Quaternion(),localTarget=new THREE.Vector3();
+  let rifleGripErrorR=0,rifleGripErrorL=0;
+  let rifleTargets=null;
   function alignWorldGuns(facingYaw) {
-    if(!boundHand)return;
-    boundHand.updateWorldMatrix(true,false);
-    boundHand.getWorldQuaternion(handWorldQuat);
     headingQuat.setFromAxisAngle(upAxis,facingYaw);
+    forwardWorld.set(-Math.sin(facingYaw),0,-Math.cos(facingYaw));
     for(const holder of gunHolders.values()) {
       const copy=holder.userData.gunCopy;
-      if(!copy)continue;
-      // boneWorld * holderLocal * sourceGunLocal = desiredWorldHeading
+      if(!copy||!holder.parent)continue;
+      holder.parent.updateWorldMatrix(true,false);
+      holder.parent.getWorldQuaternion(parentWorldQuat);
       inverseCopyQuat.copy(copy.quaternion).invert();
-      holder.quaternion.copy(handWorldQuat).invert()
-        .multiply(headingQuat).multiply(inverseCopyQuat);
+      holder.quaternion.copy(parentWorldQuat).invert().multiply(headingQuat).multiply(inverseCopyQuat);
+      if(holder.userData.mount==='hand') {
+        // Original pistol animation stays intact. Translate its gun forward
+        // in WORLD heading, expressed in its moving hand's local frame.
+        localShift.copy(forwardWorld).applyQuaternion(parentWorldQuat.clone().invert());
+        holder.position.set(0,-.08,.08).addScaledVector(localShift,.27);
+      }else if(holder.userData.mount==='chest'){
+        // Recoil has a small real displacement, so the IK hands follow it.
+        holder.position.set(-.08,1.40,.66-Math.min(.09,recoil*.55));
+      }
     }
   }
-
+  // Cyclic-coordinate descent IK: use animated shoulder/elbow as the start
+  // pose and make the wrist reach a specific foregrip / trigger target.
+  // Unlike copying KayKit wrist rotations directly, this aligns positions
+  // despite differences in the two rigs' bone rest axes.
+  function reachGrip(chain,target,iterations=8) {
+    if(!chain)return Infinity;
+    for(let iter=0;iter<iterations;iter++) {
+      for(const joint of [chain.elbow,chain.upper]){
+        joint.updateWorldMatrix(true,false);
+        chain.hand.updateWorldMatrix(true,false);
+        joint.getWorldPosition(jointPosition);
+        chain.hand.getWorldPosition(handPosition);
+        currentVector.copy(handPosition).sub(jointPosition);
+        targetVector.copy(target).sub(jointPosition);
+        if(currentVector.lengthSq()<1e-7||targetVector.lengthSq()<1e-7)continue;
+        currentVector.normalize();targetVector.normalize();
+        const angle=currentVector.angleTo(targetVector);
+        if(angle<.001)continue;
+        worldTurn.setFromUnitVectors(currentVector,targetVector);
+        // Dampen large single-joint changes to avoid elbows snapping backwards.
+        if(angle>.52)worldTurn.slerp(identity,1-.52/angle);
+        joint.parent.getWorldQuaternion(transformQ);
+        localTurn.copy(transformQ).invert().multiply(worldTurn).multiply(transformQ);
+        joint.quaternion.premultiply(localTurn).normalize();
+        joint.updateWorldMatrix(true,true);
+      }
+    }
+    chain.hand.getWorldPosition(handPosition);
+    return handPosition.distanceTo(target);
+  }
+  const gripRight=new THREE.Vector3(-.17,1.34,.45);
+  const gripLeft=new THREE.Vector3(.13,1.32,.52);
+  const rightWorld=new THREE.Vector3(),leftWorld=new THREE.Vector3();
+  function updateRifleHands({swimming,reloading}){
+    if(swimming||selected!==1||!bodyRoot||!armChains.R||!armChains.L)return;
+    bodyRoot.updateWorldMatrix(true,true);
+    rightWorld.copy(gripRight);
+    leftWorld.copy(gripLeft);
+    const holder=gunHolders.get('m4a1');
+    if(holder) {
+      // When the rifle recoils, the grips shift with the visible gun.
+      const recoilBack=holder.position.z-.66;
+      rightWorld.z+=recoilBack;
+      leftWorld.z+=recoilBack;
+    }
+    bodyRoot.localToWorld(rightWorld);
+    bodyRoot.localToWorld(leftWorld);
+    rifleGripErrorR=reachGrip(armChains.R,rightWorld);
+    // During reload the source clip moves the support hand to the magazine.
+    rifleGripErrorL=reloading?0:reachGrip(armChains.L,leftWorld);
+    rifleTargets={right:rightWorld.toArray(),left:leftWorld.toArray()};
+  }
   function setPerspective(n,swimming=false) {
     fpRoot.visible=n===3&&!swimming;
     crosshair.style.display=n===3&&!swimming?'block':'none';
@@ -241,7 +322,10 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       if(p.t<=0){scene.remove(p.mesh);p.mesh.geometry.dispose();p.mesh.material.dispose();shotMarks.splice(i,1);}
     }
     setPerspective(mode,swimming);
-    if(!swimming&&activeReload===null)alignWorldGuns(playerYaw);
+    if(!swimming){
+      alignWorldGuns(playerYaw);
+      if(mode!==3)updateRifleHands({swimming,reloading:activeReload!==null});
+    }
     if(swimming!==swimmingState){swimmingState=swimming;applyVisibility();}
     fpRoot.userData.canFire=!swimming;
     if(activeReload!==null) {
@@ -290,6 +374,10 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       worldGunChildren:gunHolders.get(weapon().id)?.children.length||0,
       worldGunSize:gunHolders.get(weapon().id)?.userData.geometrySize||null,
       worldGunScale:gunHolders.get(weapon().id)?.userData.scale||null,
+      mount:gunHolders.get(weapon().id)?.userData.mount||null,
+      rightHandPosition:boundHand?.getWorldPosition(new THREE.Vector3()).toArray()||null,
+      leftHandPosition:armChains.L?.hand.getWorldPosition(new THREE.Vector3()).toArray()||null,
+      rifleGripErrorR,rifleGripErrorL,rifleTargets,
       worldGunBarrelAxis:gunHolders.get(weapon().id)?.children[0]?.children[0]?
         new THREE.Vector3(0,0,-1).applyQuaternion(
           gunHolders.get(weapon().id).children[0].children[0].getWorldQuaternion(new THREE.Quaternion())

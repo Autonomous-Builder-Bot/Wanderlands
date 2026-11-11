@@ -431,7 +431,11 @@ function animate(){
  const nativeSwim=swimming&&characterActions?.swim&&characterActions?.tread;
  // Quaternius strokes move limbs, while the character root needs a horizontal
  // surface-swim pose. Treading water remains upright.
- const targetTilt=swimming?(moving?-.50:0):0;
+ // Visible avatar only: add approximately 20 degrees of head-up trim to
+ // forward swimming. Vertical swim input pitches the avatar naturally, while
+ // first-person camera pitch and all water physics remain unchanged.
+ const verticalSwim=keys.has('Space')?1:(keys.has('KeyC')||keys.has('ControlLeft')?-1:0);
+ const targetTilt=swimming?(moving?-.15+verticalSwim*.20:0):0;
  rigPivot.rotation.x=THREE.MathUtils.lerp(rigPivot.rotation.x,targetTilt,Math.min(1,dt*5));
  updateCharacterAnimation(dt,{moving,sprint,swimming,onGround});
  for(let i=0;i<2;i++){

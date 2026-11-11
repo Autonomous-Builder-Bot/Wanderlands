@@ -178,7 +178,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
         // Original pistol animation stays intact. Translate its gun forward
         // in WORLD heading, expressed in its moving hand's local frame.
         localShift.copy(forwardWorld).applyQuaternion(parentWorldQuat.clone().invert());
-        holder.position.set(0,-.08,.08).addScaledVector(localShift,.19);
+        holder.position.set(0,-.08,.08).addScaledVector(localShift,.27);
       }else if(holder.userData.mount==='chest'){
         // Recoil has a small real displacement, so the IK hands follow it.
         holder.position.set(-.08,1.60,.66-Math.min(.09,recoil*.55));

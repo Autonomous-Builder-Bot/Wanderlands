@@ -449,7 +449,7 @@ function animate(){
  scene.fog.color.copy(submerged?underwaterFog:airFog);
  scene.fog.density=submerged?.036:.0035;
  scene.background.copy(submerged?underwaterFog:skyColor);
- weapons.update(dt,{mode,swimming,moving,sprint});
+ weapons.update(dt,{mode,swimming,moving,sprint,playerYaw:player.rotation.y});
  const label=swimming?(swimDive>.25?'Diving':'Swimming'):!onGround?'Jumping':wading?'Wading':moving?(sprint?'Sprinting':'Walking'):'Exploring';
  document.querySelector('#stats').textContent=label+' · X '+p.x.toFixed(0)+' · Z '+p.z.toFixed(0)+' · '+chunks.size+' chunks';
  renderer.render(scene,camera);

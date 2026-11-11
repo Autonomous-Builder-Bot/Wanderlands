@@ -12,6 +12,13 @@ test('free medieval knight, real sword/shield, greatsword and native melee anima
  await expect.poll(async()=> (await state()).medieval.ready,{timeout:90000}).toBe(true);
  await expect.poll(async()=> (await state()).medieval.twoHandReady,{timeout:90000}).toBe(true);
  const initial=await state();
+ // The actual public game now starts in medieval, not guns.
+ expect(initial.medieval.active).toBe(true);
+ expect(initial.weapons.medievalMode).toBe(true);
+ expect(initial.medieval.characterVisible).toBe(true);
+ await page.keyboard.press('m');
+ await expect.poll(async()=> (await state()).medieval.active).toBe(false);
+ await expect.poll(async()=> (await state()).weapons.medievalMode).toBe(false);
  console.log('MEDIEVAL_ASSETS',JSON.stringify(initial.medieval));
  expect(initial.medieval.assetError).toBeNull();
  expect(initial.medieval.animationError).toBeNull();

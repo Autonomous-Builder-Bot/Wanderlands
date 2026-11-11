@@ -76,7 +76,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       // Rifle is supported in front of the chest, not suspended from the
       // retargeted wrist. A later IK pass brings both real hands onto its grips.
       bodyRoot.add(holder);
-      holder.position.set(-.08,1.60,.66);
+      holder.position.set(-.08,1.40,.66);
       holder.userData.mount='chest';
     }else if(boundHand) {
       boundHand.add(holder);
@@ -181,7 +181,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
         holder.position.set(0,-.08,.08).addScaledVector(localShift,.27);
       }else if(holder.userData.mount==='chest'){
         // Recoil has a small real displacement, so the IK hands follow it.
-        holder.position.set(-.08,1.60,.66-Math.min(.09,recoil*.55));
+        holder.position.set(-.08,1.40,.66-Math.min(.09,recoil*.55));
       }
     }
   }
@@ -215,8 +215,8 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     chain.hand.getWorldPosition(handPosition);
     return handPosition.distanceTo(target);
   }
-  const gripRight=new THREE.Vector3(-.17,1.54,.45);
-  const gripLeft=new THREE.Vector3(.13,1.49,.52);
+  const gripRight=new THREE.Vector3(-.17,1.34,.45);
+  const gripLeft=new THREE.Vector3(.13,1.32,.52);
   const rightWorld=new THREE.Vector3(),leftWorld=new THREE.Vector3();
   function updateRifleHands({swimming,reloading}){
     if(swimming||selected!==1||!bodyRoot||!armChains.R||!armChains.L)return;
@@ -382,6 +382,13 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
         new THREE.Vector3(0,0,-1).applyQuaternion(
           gunHolders.get(weapon().id).children[0].children[0].getWorldQuaternion(new THREE.Quaternion())
         ).toArray():null,
+      worldGunActualBounds:(()=>{
+        const holder=gunHolders.get(weapon().id);
+        if(!holder)return null;
+        const bounds=new THREE.Box3().setFromObject(holder);
+        return {center:bounds.getCenter(new THREE.Vector3()).toArray(),
+          size:bounds.getSize(new THREE.Vector3()).toArray()};
+      })(),
       worldGunPosition:gunHolders.get(weapon().id)?
         gunHolders.get(weapon().id).getWorldPosition(new THREE.Vector3()).toArray():null,
       shotCount

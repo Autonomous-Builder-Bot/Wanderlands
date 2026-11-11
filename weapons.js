@@ -87,6 +87,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     normalized.scale.setScalar(scale);
     holder.add(normalized);
     gunHolders.set(id,holder);
+    holder.userData.gunCopy=copy;
     holder.userData.geometrySize=dimension.toArray();
     holder.userData.scale=scale;
     holder.visible=weapons[selected].id===id&&!swimmingState;
@@ -131,6 +132,28 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   function applyVisibility() {
     for(const [id,mesh] of models)mesh.visible=id===weapons[selected].id;
     for(const [id,holder] of gunHolders)holder.visible=id===weapons[selected].id&&!swimmingState;
+  }
+
+  // Visual gun barrel points down -Z. Keep that axis lined up with the
+  // character's -Z movement heading, while the position follows its animated
+  // right-hand bone. Donor FPS guns and mannequin wrist have different bases.
+  const upAxis=new THREE.Vector3(0,1,0);
+  const handWorldQuat=new THREE.Quaternion();
+  const headingQuat=new THREE.Quaternion();
+  const inverseCopyQuat=new THREE.Quaternion();
+  function alignWorldGuns(facingYaw) {
+    if(!boundHand)return;
+    boundHand.updateWorldMatrix(true,false);
+    boundHand.getWorldQuaternion(handWorldQuat);
+    headingQuat.setFromAxisAngle(upAxis,facingYaw);
+    for(const holder of gunHolders.values()) {
+      const copy=holder.userData.gunCopy;
+      if(!copy)continue;
+      // boneWorld * holderLocal * sourceGunLocal = desiredWorldHeading
+      inverseCopyQuat.copy(copy.quaternion).invert();
+      holder.quaternion.copy(handWorldQuat).invert()
+        .multiply(headingQuat).multiply(inverseCopyQuat);
+    }
   }
 
   function setPerspective(n,swimming=false) {
@@ -208,7 +231,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   }
 
   let elapsed=0;
-  function update(dt,{mode=2,swimming=false,moving=false,sprint=false}={}) {
+  function update(dt,{mode=2,swimming=false,moving=false,sprint=false,playerYaw=0}={}) {
     elapsed+=dt;cooldown=Math.max(0,cooldown-dt);
     recoil=THREE.MathUtils.damp(recoil,0,14,dt);
     muzzleTime=Math.max(0,muzzleTime-dt);
@@ -218,6 +241,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       if(p.t<=0){scene.remove(p.mesh);p.mesh.geometry.dispose();p.mesh.material.dispose();shotMarks.splice(i,1);}
     }
     setPerspective(mode,swimming);
+    if(!swimming&&activeReload===null)alignWorldGuns(playerYaw);
     if(swimming!==swimmingState){swimmingState=swimming;applyVisibility();}
     fpRoot.userData.canFire=!swimming;
     if(activeReload!==null) {

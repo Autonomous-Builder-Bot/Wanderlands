@@ -34,6 +34,7 @@ test('rifle uses CC0 two-handed clips while pistol retains separate originals; s
  await page.locator('canvas').click({position:{x:150,y:100}});
  await expect.poll(async()=> (await state()).weapons.ammo).toBeLessThan(ammo);
  await expect.poll(async()=> (await state()).rifleAnimations.active,{timeout:5000}).toBe('shoot');
+ await page.waitForTimeout(100);
  await page.screenshot({path:testInfo.outputPath('rifle-shoot.png')});
  await page.keyboard.press('r');
  await expect.poll(async()=> (await state()).weapons.reloading,{timeout:5000}).toBe(true);

@@ -20,8 +20,9 @@ Then open http://localhost:8000/.
 |---|---|
 | W/A/S/D | Move |
 | Shift | Sprint (also while swimming) |
-| Mouse drag | Rotate camera |
+| Mouse drag | Rotate camera in top-down and third-person |
 | 1 / 2 / 3 | Top-down / third-person / first-person |
+| Mouse in first-person | Click to lock mouse, move to look; Esc releases pointer |
 | Space | Jump on land / swim up toward surface in deep water |
 | C or Left Ctrl | Dive while in deep water |
 | Left click | Fire equipped weapon |
@@ -30,6 +31,14 @@ Then open http://localhost:8000/.
 | N | Generate a new world seed |
 
 Add `?seed=2026` to the URL for a reproducible world.
+
+## Version 0.5 — Camera and character animation
+- Pointer lock in first person: mouse movement looks around without holding the mouse button; Escape releases it
+- Improved third-person gun attachment to the actual animated right hand
+- Closer top-down and third-person camera for character and weapon readability
+- CC0 Quaternius mannequin with its own idle, walk, sprint, jump, swim, tread, pistol idle, pistol shoot and pistol reload animation clips
+- Swimming has real authored arm/leg motion, plus horizontal swimming pose; treading remains upright
+- Character is still a temporary rigged mannequin for testing, not final art
 
 ## Version 0.4 — Jumping and weapons
 - Gravity-based jumps, aerial movement, ground landing, and existing water interactions
@@ -44,16 +53,16 @@ Add `?seed=2026` to the URL for a reproducible world.
 - Instanced trees and rocks for improved performance
 - Official Three.js `Water` add-on (r169): planar reflection, repeating normal map and sun highlights on the lake
 - Water gameplay: wading, surface swimming, diving, drag, buoyancy, and a bottom-depth limit
-- Temporary Soldier GLB sourced from the official Three.js examples, with its authored idle/walk/run animation clips; placeholder used if loading fails
+- Temporary Quaternius CC0 rigged mannequin with 46 native animation clips; the simple fallback avatar remains if it fails to load
 - Top-down, third-person, and first-person camera modes
 - Sunlight, dynamic shadows, sky, atmosphere, and underwater fog
 
 ## Current limitations
 - Water uses lightweight scripted gameplay physics, **not** a fluid simulation.
-- The temporary Soldier character does not yet have authored swim clips; it uses a tilted idle pose underwater. Real CC0 swimming motions are available from Quaternius/KinemIQ for future retargeting.
+- Swimming and treading use Quaternius's authored CC0 clips. Body tilt, buoyancy and transitions are still simplified.
 - Terrain and vegetation have no collision except a vertical ground-height constraint.
 - Weapons have basic firing and ammunition, but no enemies, hit-point combat, advanced bullet physics, inventory persistence, or RPG progression yet.
-- The temporary Soldier model has no authored jump or full-body shooting clips, so airborne posing is basic.
+- The temporary mannequin has authored jump and pistol shoot/reload clips. The rifle still uses the temporary pistol-oriented full-body animation and its first-person donor arms are not aligned through full runtime IK.
 - First-person reload hand motion comes from a donor animation rig; full live hand-target IK is not integrated yet.
 - The water-normal image is stored in `assets/waternormals.jpg` (original Three.js r169 binary). Three.js modules load from version-pinned jsDelivr, while the temporary Soldier model loads from the version-pinned official GitHub repository. The game therefore currently needs internet access for its engine and model.
 - The reflective surface is visual only; buoyancy, drag, wading and diving are intentionally simple scripted gameplay physics, not simulated fluid dynamics.
@@ -77,3 +86,6 @@ Asset provenance: `assets/waternormals.jpg` comes from `mrdoob/three.js` tag `r1
 ### Additional free asset sources used for the prototype
 - [IRONLINE first-person models and credited animation rigs](https://github.com/cktang88/3d-fps) (derived from CC BY 4.0 art; see `THIRD_PARTY_NOTICES.md`)
 - Only loadout demonstrator assets; they are not the planned final character or weapon art.
+
+### Character asset details
+The CC0 test mannequin comes from Quaternius's Universal Animation Library (Standard), packaged as a web-ready GLB by ToonLab, pinned to the upstream commit listed in `THIRD_PARTY_NOTICES.md`. Its 46 native clips are used directly, avoiding cross-rig animation retargeting for this prototype.

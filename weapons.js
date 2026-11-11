@@ -22,6 +22,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   const models=new Map(),gunMeshes=new Map(),gunHolders=new Map();
   const weapons=SPECS.map(x=>({...x,modelLoaded:false,assetError:null}));
   let selected=0, character=null, boundHand=null;
+  let shotCount=0,swimmingState=false;
   let activeReload=null, reloadTime=0, cooldown=0, recoil=0, muzzleTime=0, heldFire=false;
   let reloadScene=null,reloadMixer=null,reloadClips=[],reloadAction=null,reloadError=null;
   const shotMarks=[];
@@ -46,8 +47,10 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     character=model;
     const bones=[];
     model.traverse(o=>{if(o.isBone)bones.push(o)});
-    boundHand=bones.find(o=>/RightHand$/i.test(o.name))||
-              bones.find(o=>/hand[_ .]?r(ight)?$/i.test(o.name))||null;
+    boundHand=bones.find(o=>/right[_ .]?hand$/i.test(o.name))||
+              bones.find(o=>/hand[_.]?r(ight)?$/i.test(o.name))||
+              bones.find(o=>/hand/i.test(o.name)&&/(right|[_ .]r$)/i.test(o.name))||null;
+    if(!boundHand)console.warn('Rig hand bone not found; using approximate body mount',bones.map(b=>b.name).slice(-30));
     // Hands on the temporary Soldier rig follow authored idle/walk/run clips.
     for(const w of weapons)attachWorldGun(w.id);
   }
@@ -60,27 +63,33 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     holder.name='Held_'+id;
     if(boundHand) {
       boundHand.add(holder);
-      holder.position.set(0,-.07,.05);
-      holder.rotation.set(-Math.PI/2,0,Math.PI);
+      // Keep the mount tied to the animated hand; source weapon meshes are rigid.
+      holder.position.set(0,-.08,.08);
+      holder.rotation.set(0,Math.PI/2,Math.PI/2);
     }else{
       character.add(holder);
-      holder.position.set(.4,1.5,-.28);
+      holder.position.set(.36,1.4,-.26);
       holder.rotation.set(0,Math.PI,0);
     }
-    // Normalize an external source mesh independently of its authored units.
+    // Fit the actual donor gun mesh to world scale in its own local frame.
+    // This avoids subtracting a world-space bounding-box center inside a bone transform.
     const copy=gun.clone(true);
-    const box=new THREE.Box3().setFromObject(copy);
-    const size=box.getSize(new THREE.Vector3());
-    const longest=Math.max(size.x,size.y,size.z,1e-5);
-    const centre=box.getCenter(new THREE.Vector3());
-    copy.position.sub(centre);
+    copy.traverse(obj=>{if(obj.isMesh){obj.visible=true;obj.frustumCulled=false;obj.castShadow=true;}});
+    const normalized=new THREE.Group();
+    normalized.add(copy);normalized.updateMatrixWorld(true);
+    const bounds=new THREE.Box3().setFromObject(normalized);
+    const dimension=bounds.getSize(new THREE.Vector3());
+    const longest=Math.max(dimension.x,dimension.y,dimension.z,.0001);
+    const center=bounds.getCenter(new THREE.Vector3());
+    // Centre asset BEFORE scaling its geometry and mounting it on the character bone.
+    copy.position.sub(center);
     const scale=(weapons.find(w=>w.id===id)?.size??.3)/longest;
-    const geometryRoot=new THREE.Group();
-    geometryRoot.scale.setScalar(scale);
-    geometryRoot.add(copy);
-    holder.add(geometryRoot);
+    normalized.scale.setScalar(scale);
+    holder.add(normalized);
     gunHolders.set(id,holder);
-    holder.visible=weapons[selected].id===id;
+    holder.userData.geometrySize=dimension.toArray();
+    holder.userData.scale=scale;
+    holder.visible=weapons[selected].id===id&&!swimmingState;
   }
   for(const w of weapons) {
     loader.load(SOURCE+'fp/'+w.id+'.glb',gltf=>{
@@ -121,7 +130,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
 
   function applyVisibility() {
     for(const [id,mesh] of models)mesh.visible=id===weapons[selected].id;
-    for(const [id,holder] of gunHolders)holder.visible=id===weapons[selected].id;
+    for(const [id,holder] of gunHolders)holder.visible=id===weapons[selected].id&&!swimmingState;
   }
 
   function setPerspective(n,swimming=false) {
@@ -144,7 +153,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   function fire() {
     const w=weapon();
     if(activeReload!==null||cooldown>0||w.ammo<=0||!fpRoot.userData.canFire)return false;
-    w.ammo--;cooldown=w.interval;recoil=.16;muzzleTime=.08;
+    w.ammo--;cooldown=w.interval;recoil=.16;muzzleTime=.08;shotCount++;
     const targetOrigin=camera.getWorldPosition(new THREE.Vector3());
     const rayDir=camera.getWorldDirection(new THREE.Vector3());
     const ray=new THREE.Raycaster(targetOrigin,rayDir,0,250);
@@ -209,6 +218,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       if(p.t<=0){scene.remove(p.mesh);p.mesh.geometry.dispose();p.mesh.material.dispose();shotMarks.splice(i,1);}
     }
     setPerspective(mode,swimming);
+    if(swimming!==swimmingState){swimmingState=swimming;applyVisibility();}
     fpRoot.userData.canFire=!swimming;
     if(activeReload!==null) {
       reloadTime-=dt;
@@ -233,6 +243,14 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     flash.visible=muzzleTime>0&&mode===3&&!swimming;
   }
 
+  function animationState(){
+    return {
+      id:weapon().id,reloading:activeReload!==null,
+      reloadDuration:weapon().reloadSeconds,shotCount,
+      ammo:weapon().ammo,reserve:weapon().reserve
+    };
+  }
+
   // The reload pack contains real baked animation tracks; keep its metadata
   // so clip names remain verifiable after loading from a separate GLB.
   function debug(){
@@ -243,9 +261,14 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       reloadError,reloading:activeReload!==null,
       gunAttached:gunHolders.has(weapon().id),handBone:boundHand?.name||null,
       canFire:!!fpRoot.userData.canFire,cooldown,clipPlaying:!!reloadAction,
-      modelVisible:!!models.get(weapon().id)?.visible
+      modelVisible:!!models.get(weapon().id)?.visible,
+      worldGunVisible:!!gunHolders.get(weapon().id)?.visible,
+      worldGunChildren:gunHolders.get(weapon().id)?.children.length||0,
+      worldGunSize:gunHolders.get(weapon().id)?.userData.geometrySize||null,
+      worldGunScale:gunHolders.get(weapon().id)?.userData.scale||null,
+      shotCount
     };
   }
   updateHud();
-  return {bindCharacter,setPerspective,choose,switchWeapon,setTrigger,reload,update,debug,fire};
+  return {bindCharacter,setPerspective,choose,switchWeapon,setTrigger,reload,update,animationState,debug,fire};
 }

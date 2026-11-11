@@ -14,7 +14,7 @@
 </head>
 <body>
 <div id="hud"><strong>WANDERLANDS</strong><div id="view">Third person</div><div id="stats">Generating world...</div><div id="seed"></div></div>
-<div id="help">WASD move · Space jump / swim up · Shift sprint · Drag look · Click fire · R reload · Q switch weapon · 1/2/3 camera · C dive · N new world</div>
+<div id="help">WASD move · Space jump/swim up · Shift sprint · 1/2/3 views · First-person: click to lock mouse, Esc release · Click fire · R reload · Q switch weapon · C dive · N new world</div>
 <div id="error"></div>
 <script type="module">
 import * as THREE from 'three';
@@ -188,43 +188,105 @@ for(const sign of [-1,1]){
 }
 
 
-// Temporary freely available, rigged character from the official Three.js examples.
-// It is deliberately isolated under avatar so we can replace the model later.
-let characterMixer=null,characterActions=null;
-new GLTFLoader().load(
- 'https://raw.githubusercontent.com/mrdoob/three.js/r169/examples/models/gltf/Soldier.glb',
- gltf=>{
-  const clips=Object.fromEntries(gltf.animations.map(clip=>[clip.name.toLowerCase(),clip]));
-  if(!clips.idle||!clips.walk||!clips.run){
-   console.warn('Character is missing expected Idle/Walk/Run clips');
-   return; // Keep the existing placeholder instead of leaving a broken player.
+// CC0 Quaternius mannequin from ToonLab: native humanoid skeleton plus 46 authored clips.
+// Unlike Soldier.glb, the source contains its own swim/tread/pistol/jump animations.
+// Temporary look only: final art can be replaced once its rig is validated.
+let characterMixer=null,characterActions=null,characterAssetError=null,characterClipNames=[];
+let activeCharacterState='idle',previousShotCount=0;
+const CHARACTER_URL='https://raw.githubusercontent.com/call-me-sensei-app/toonlab/2e354c52e5539e33fb3d8f339645b47e1ac937ca/public/characters/mannequin.glb';
+new GLTFLoader().load(CHARACTER_URL,gltf=>{
+  const sourceClips=gltf.animations;
+  const names=new Map(sourceClips.map(clip=>[clip.name.toLowerCase(),clip]));
+  characterClipNames=sourceClips.map(clip=>clip.name);
+  function pick(...options){
+    for(const name of options){const clip=names.get(name.toLowerCase());if(clip)return clip;}
+    return null;
   }
-  const model=gltf.scene;
-  model.traverse(object=>{if(object.isMesh){object.castShadow=true;object.frustumCulled=false;}});
-  avatar.add(model);
-  weapons.bindCharacter(model);
-  const mixer=new THREE.AnimationMixer(model);
-  const actions={
-   idle:mixer.clipAction(clips.idle),
-   walk:mixer.clipAction(clips.walk),
-   run:mixer.clipAction(clips.run)
+  const selected={
+    idle:pick('Idle_Loop','Idle'),
+    walk:pick('Walk_Loop','Walk'),
+    run:pick('Sprint_Loop','Jog_Fwd_Loop','Run'),
+    swim:pick('Swim_Fwd_Loop','Swim'),
+    tread:pick('Swim_Idle_Loop','TreadingWater'),
+    jump:pick('Jump_Loop','Jump_Start','Jump'),
+    pistolIdle:pick('Pistol_Idle_Loop','Pistol_Idle'),
+    pistolShoot:pick('Pistol_Shoot'),
+    pistolReload:pick('Pistol_Reload')
   };
-  for(const [key,action] of Object.entries(actions)){
-   action.setEffectiveWeight(key==='idle'?1:0);
-   action.play();
+  if(!selected.idle||!selected.walk||!selected.swim||!selected.tread){
+    characterAssetError='Missing a required Quaternius clip: '+Object.entries(selected).filter(([key,clip])=>!clip).map(([key])=>key).join(', ');
+    console.warn(characterAssetError);
+    return;
+  }
+  const model=gltf.scene;model.name='WanderlandsCC0TestMannequin';
+  model.traverse(obj=>{if(obj.isMesh){obj.castShadow=true;obj.frustumCulled=false;}});
+  avatar.add(model);
+  // The new GLB supplies both the character and clips, so retargeting is not needed.
+  const mixer=new THREE.AnimationMixer(model);
+  const actions={};
+  for(const [name,clip] of Object.entries(selected)){
+    if(!clip)continue;
+    const action=mixer.clipAction(clip);
+    if(name==='pistolShoot'||name==='pistolReload'){
+      action.setLoop(THREE.LoopOnce,1);
+      action.clampWhenFinished=true;
+    }
+    action.setEffectiveWeight(name==='idle'?1:0);
+    action.play();
+    actions[name]=action;
   }
   characterMixer=mixer;characterActions=actions;
+  weapons.bindCharacter(model);
   fallbackAvatar.visible=false;
- },undefined,error=>console.warn('Character model failed to load; retaining fallback:',error)
-);
+},undefined,error=>{
+ characterAssetError=String(error?.message||error);
+ console.warn('CC0 character failed to load:',error);
+});
+function updateCharacterAnimation(dt,{moving,sprint,swimming,onGround}){
+ if(!characterMixer||!characterActions)return;
+ const weapon=weapons.animationState();
+ let state;
+ if(swimming)state=moving?'swim':'tread';
+ else if(!onGround)state='jump';
+ else if(weapon.reloading&&characterActions.pistolReload)state='pistolReload';
+ else if(weapon.shotCount!==previousShotCount&&characterActions.pistolShoot){
+   state='pistolShoot';
+ }else if(activeCharacterState==='pistolShoot'&&characterActions.pistolShoot&&
+          characterActions.pistolShoot.time<Math.min(.38,characterActions.pistolShoot.getClip().duration-.04)){
+   state='pistolShoot';
+ }else if(moving)state=sprint?'run':'walk';
+ else if(weapon.id==='p226'&&characterActions.pistolIdle)state='pistolIdle';
+ else state='idle';
+ previousShotCount=weapon.shotCount;
+ if(!characterActions[state])state=characterActions.idle?'idle':Object.keys(characterActions)[0];
+ if(activeCharacterState!==state){
+   const action=characterActions[state];
+   if(state==='pistolShoot'||state==='pistolReload'){
+     action.reset().play();
+     if(state==='pistolReload')
+        action.setEffectiveTimeScale(action.getClip().duration/Math.max(.1,weapon.reloadDuration));
+   }
+   activeCharacterState=state;
+ }
+ const blend=1-Math.exp(-dt*9);
+ for(const [key,action] of Object.entries(characterActions)){
+   const target=key===state?1:0;
+   action.setEffectiveWeight(THREE.MathUtils.lerp(action.getEffectiveWeight(),target,blend));
+ }
+ characterMixer.update(dt);
+}
 const keys=new Set(),clock=new THREE.Clock(),ahead=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3(),velocity=new THREE.Vector3();
 const skyColor=new THREE.Color(0x9ec6d4),airFog=new THREE.Color(0xa7c7bb),underwaterFog=new THREE.Color(0x236879);
 let mode=2,yaw=-.95,pitch=.35,drag=false,step=0,swimDive=0,swimming=false,wading=false,elapsed=0;
+let pointerLocked=false;
 let verticalSpeed=0,onGround=true,jumpQueued=false,jumpCount=0,wasSwimming=false;
 function view(n){
  if(n<1||n>3)return;
  mode=n;document.querySelector('#view').textContent=['','Top-down','Third-person','First-person'][n];
  avatar.visible=n!==3;
+ if(n!==3&&document.pointerLockElement===renderer.domElement)document.exitPointerLock();
+ if(n===3)lockFirstPerson();
+ updateMouseHint();
 }
 window.addEventListener('keydown',e=>{
  if(['KeyW','KeyS','KeyA','KeyD','ShiftLeft','Space','KeyC','ControlLeft','Digit1','Digit2','Digit3','KeyR','KeyN','KeyQ'].includes(e.code))e.preventDefault();
@@ -237,15 +299,46 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
 window.addEventListener('blur',()=>{keys.clear();weapons.setTrigger(false);});
+const hint=document.createElement('div');
+hint.id='mouse-hint';
+Object.assign(hint.style,{position:'fixed',top:'15%',left:'50%',transform:'translateX(-50%)',
+  padding:'8px 14px',borderRadius:'8px',background:'#162c3cc9',color:'white',
+  font:'13px system-ui',pointerEvents:'none',zIndex:'7'});
+document.body.appendChild(hint);
+function updateMouseHint(){
+ hint.style.display=mode===3&&!pointerLocked?'block':'none';
+ hint.textContent='Click to capture mouse · Esc to release';
+}
+function lockFirstPerson(){
+ if(mode!==3||document.pointerLockElement===renderer.domElement)return;
+ const req=renderer.domElement.requestPointerLock?.();
+ if(req&&typeof req.catch==='function')req.catch(error=>console.warn('Pointer lock unavailable:',error.message));
+}
+document.addEventListener('pointerlockchange',()=>{
+ pointerLocked=document.pointerLockElement===renderer.domElement;
+ drag=false;updateMouseHint();weapons.setTrigger(false);
+});
+document.addEventListener('mousemove',e=>{
+ if(!pointerLocked||mode!==3)return;
+ yaw-=e.movementX*.0025;
+ pitch=THREE.MathUtils.clamp(pitch+e.movementY*.0025,-1.25,1.25);
+});
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 renderer.domElement.addEventListener('pointerdown',e=>{
-  drag=true;renderer.domElement.setPointerCapture(e.pointerId);
-  if(e.button===0)weapons.setTrigger(true);
+ if(mode===3){
+   if(!pointerLocked){lockFirstPerson();return;}
+   if(e.button===0)weapons.setTrigger(true);
+ }else{
+   drag=true;renderer.domElement.setPointerCapture(e.pointerId);
+   if(e.button===0)weapons.setTrigger(true);
+ }
 });
 renderer.domElement.addEventListener('pointerup',()=>{drag=false;weapons.setTrigger(false)});
 renderer.domElement.addEventListener('pointercancel',()=>{drag=false;weapons.setTrigger(false)});
 renderer.domElement.addEventListener('pointermove',e=>{
- if(drag){yaw-=e.movementX*.005;pitch=THREE.MathUtils.clamp(pitch+e.movementY*.004,-.45,1.3)}
+ if(!drag||mode===3)return;
+ yaw-=e.movementX*.005;
+ pitch=THREE.MathUtils.clamp(pitch+e.movementY*.004,-.45,1.3);
 });
 window.addEventListener('resize',()=>{
  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)
@@ -259,6 +352,8 @@ function animate(){
  ahead.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));
  direction.copy(ahead).multiplyScalar(z).addScaledVector(right,x);
  if(moving)direction.normalize();
+ // First-person facing follows the locked look direction even when stationary.
+ if(mode===3)player.rotation.y=yaw;
  const groundBefore=ground(player.position.x,player.position.z);
  const depthBefore=WATER_LEVEL-groundBefore;
  swimming=depthBefore>1.8;wading=depthBefore>.18&&!swimming;
@@ -301,17 +396,12 @@ function animate(){
   }
  }
  jumpQueued=false;
- rigPivot.rotation.x=THREE.MathUtils.lerp(rigPivot.rotation.x,swimming?-1.05:0,Math.min(1,dt*5));
- if(characterMixer&&characterActions){
-  // Use the model's genuine authored clips; there is no fake clip synthesis.
-  // A proper licensed swim clip will replace the idle pose while swimming.
-  const active=swimming||!onGround?'idle':moving?(sprint?'run':'walk'):'idle';
-  const blend=Math.min(1,dt*7);
-  for(const [key,action] of Object.entries(characterActions)){
-   action.setEffectiveWeight(THREE.MathUtils.lerp(action.getEffectiveWeight(),key===active?1:0,blend));
-  }
-  characterMixer.update(dt);
- }
+ // Quaternius source clips contain authored arm/leg strokes and treading water.
+ // Do not re-tilt the rig when a native swim clip supplies the full swimming pose.
+ const nativeSwim=swimming&&characterActions?.swim&&characterActions?.tread;
+ const targetTilt=swimming&&!nativeSwim?-1.05:0;
+ rigPivot.rotation.x=THREE.MathUtils.lerp(rigPivot.rotation.x,targetTilt,Math.min(1,dt*5));
+ updateCharacterAnimation(dt,{moving,sprint,swimming,onGround});
  for(let i=0;i<2;i++){
   const phase=step+i*Math.PI;
   const legAngle=swimming?Math.sin(phase*1.3)*.32:!onGround?-.25:moving?Math.sin(phase)*(wading?.32:.5):0;
@@ -358,7 +448,8 @@ if(new URLSearchParams(location.search).has('debug')){
    characterLoaded:!!characterMixer,
    depth:WATER_LEVEL-ground(player.position.x,player.position.z),
    x:player.position.x,z:player.position.z,y:player.position.y,groundY:ground(player.position.x,player.position.z),
-   swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug()
+   swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug(),
+   pointerLocked,characterClipNames,activeCharacterState,characterAssetError
   }),
   teleportLake:()=>{
    player.position.set(LAKE_X,ground(LAKE_X,LAKE_Z),LAKE_Z);

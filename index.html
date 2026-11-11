@@ -252,7 +252,7 @@ window.addEventListener('resize',()=>{
 });
 function animate(){
  requestAnimationFrame(animate);
- const dt=Math.min(clock.getDelta(),.05);elapsed+=dt;
+ const dt=Math.min(clock.getDelta(),.2);elapsed+=dt;
  const x=Number(keys.has('KeyD'))-Number(keys.has('KeyA'));
  const z=Number(keys.has('KeyW'))-Number(keys.has('KeyS'));
  const moving=!!(x||z),sprint=keys.has('ShiftLeft');

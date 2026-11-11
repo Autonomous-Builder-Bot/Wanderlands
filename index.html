@@ -14,12 +14,13 @@
 </head>
 <body>
 <div id="hud"><strong>WANDERLANDS</strong><div id="view">Third person</div><div id="stats">Generating world...</div><div id="seed"></div></div>
-<div id="help">WASD move · Shift sprint · Drag mouse to look · 1 top-down · 2 third-person · 3 first-person · Space rise · C dive · R new world</div>
+<div id="help">WASD move · Space jump / swim up · Shift sprint · Drag look · Click fire · R reload · Q switch weapon · 1/2/3 camera · C dive · N new world</div>
 <div id="error"></div>
 <script type="module">
 import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { createWeaponSystem } from './weapons.js';
 try {
 const urlSeed=Number(new URLSearchParams(location.search).get('seed'));
 const seed=Number.isFinite(urlSeed)&&urlSeed!==0?urlSeed:2026;
@@ -161,6 +162,12 @@ function stream(x,z){
 
 
 const player=new THREE.Group();scene.add(player);
+// FPS viewmodels ride the camera, while world weapons attach to the rig's right hand.
+scene.add(camera);
+const weapons=createWeaponSystem({
+  camera,scene,
+  raycastTargets:()=>Array.from(chunks.values()).map(group=>group.children[0])
+});
 // Rotating about the torso creates a believable surface-swimming pose.
 const rigPivot=new THREE.Group();rigPivot.position.y=1.5;player.add(rigPivot);
 const avatar=new THREE.Group();avatar.position.y=-1.5;rigPivot.add(avatar);
@@ -195,6 +202,7 @@ new GLTFLoader().load(
   const model=gltf.scene;
   model.traverse(object=>{if(object.isMesh){object.castShadow=true;object.frustumCulled=false;}});
   avatar.add(model);
+  weapons.bindCharacter(model);
   const mixer=new THREE.AnimationMixer(model);
   const actions={
    idle:mixer.clipAction(clips.idle),
@@ -212,22 +220,30 @@ new GLTFLoader().load(
 const keys=new Set(),clock=new THREE.Clock(),ahead=new THREE.Vector3(),right=new THREE.Vector3(),direction=new THREE.Vector3(),velocity=new THREE.Vector3();
 const skyColor=new THREE.Color(0x9ec6d4),airFog=new THREE.Color(0xa7c7bb),underwaterFog=new THREE.Color(0x236879);
 let mode=2,yaw=-.95,pitch=.35,drag=false,step=0,swimDive=0,swimming=false,wading=false,elapsed=0;
+let verticalSpeed=0,onGround=true,jumpQueued=false,jumpCount=0,wasSwimming=false;
 function view(n){
  if(n<1||n>3)return;
  mode=n;document.querySelector('#view').textContent=['','Top-down','Third-person','First-person'][n];
  avatar.visible=n!==3;
 }
 window.addEventListener('keydown',e=>{
- if(['KeyW','KeyS','KeyA','KeyD','ShiftLeft','Space','KeyC','ControlLeft','Digit1','Digit2','Digit3','KeyR'].includes(e.code))e.preventDefault();
+ if(['KeyW','KeyS','KeyA','KeyD','ShiftLeft','Space','KeyC','ControlLeft','Digit1','Digit2','Digit3','KeyR','KeyN','KeyQ'].includes(e.code))e.preventDefault();
  keys.add(e.code);
  if(['Digit1','Digit2','Digit3'].includes(e.code))view(Number(e.code.slice(-1)));
- if(e.code==='KeyR'){const u=new URL(location.href);u.searchParams.set('seed',String(Math.floor(Math.random()*1e8)+1));location.assign(u.href)}
+ if(e.code==='Space'&&!e.repeat)jumpQueued=true;
+ if(e.code==='KeyR'&&!e.repeat)weapons.reload();
+ if(e.code==='KeyQ'&&!e.repeat)weapons.switchWeapon();
+ if(e.code==='KeyN'){const u=new URL(location.href);u.searchParams.set('seed',String(Math.floor(Math.random()*1e8)+1));location.assign(u.href)}
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
-window.addEventListener('blur',()=>keys.clear());
-renderer.domElement.addEventListener('pointerdown',e=>{drag=true;renderer.domElement.setPointerCapture(e.pointerId)});
-renderer.domElement.addEventListener('pointerup',()=>drag=false);
-renderer.domElement.addEventListener('pointercancel',()=>drag=false);
+window.addEventListener('blur',()=>{keys.clear();weapons.setTrigger(false);});
+renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+renderer.domElement.addEventListener('pointerdown',e=>{
+  drag=true;renderer.domElement.setPointerCapture(e.pointerId);
+  if(e.button===0)weapons.setTrigger(true);
+});
+renderer.domElement.addEventListener('pointerup',()=>{drag=false;weapons.setTrigger(false)});
+renderer.domElement.addEventListener('pointercancel',()=>{drag=false;weapons.setTrigger(false)});
 renderer.domElement.addEventListener('pointermove',e=>{
  if(drag){yaw-=e.movementX*.005;pitch=THREE.MathUtils.clamp(pitch+e.movementY*.004,-.45,1.3)}
 });
@@ -256,8 +272,11 @@ function animate(){
  }
  const groundY=ground(player.position.x,player.position.z);
  const depth=WATER_LEVEL-groundY;
+ wasSwimming=swimming;
  swimming=depth>1.8;wading=depth>.18&&!swimming;
+ if(wasSwimming&&!swimming){verticalSpeed=0;onGround=true;}
  if(swimming){
+  verticalSpeed=0;onGround=false;jumpQueued=false;
   const maxDive=Math.max(0,depth-1.85);
   if(keys.has('KeyC')||keys.has('ControlLeft'))swimDive=Math.min(maxDive,swimDive+dt*2.5);
   else if(keys.has('Space'))swimDive=Math.max(0,swimDive-dt*3.5);
@@ -268,13 +287,25 @@ function animate(){
   player.position.y=THREE.MathUtils.lerp(player.position.y,floatY,Math.min(1,dt*3.5));
  }else{
   swimDive=0;
-  player.position.y=THREE.MathUtils.lerp(player.position.y,groundY,Math.min(1,dt*10));
+  if(jumpQueued&&onGround){
+    verticalSpeed=9.2;onGround=false;jumpCount++;
+  }
+  if(!onGround){
+    verticalSpeed-=24*dt;
+    player.position.y+=verticalSpeed*dt;
+    if(player.position.y<=groundY){
+      player.position.y=groundY;verticalSpeed=0;onGround=true;
+    }
+  }else{
+    player.position.y=THREE.MathUtils.lerp(player.position.y,groundY,Math.min(1,dt*10));
+  }
  }
+ jumpQueued=false;
  rigPivot.rotation.x=THREE.MathUtils.lerp(rigPivot.rotation.x,swimming?-1.05:0,Math.min(1,dt*5));
  if(characterMixer&&characterActions){
   // Use the model's genuine authored clips; there is no fake clip synthesis.
   // A proper licensed swim clip will replace the idle pose while swimming.
-  const active=swimming?'idle':moving?(sprint?'run':'walk'):'idle';
+  const active=swimming||!onGround?'idle':moving?(sprint?'run':'walk'):'idle';
   const blend=Math.min(1,dt*7);
   for(const [key,action] of Object.entries(characterActions)){
    action.setEffectiveWeight(THREE.MathUtils.lerp(action.getEffectiveWeight(),key===active?1:0,blend));
@@ -283,8 +314,8 @@ function animate(){
  }
  for(let i=0;i<2;i++){
   const phase=step+i*Math.PI;
-  const legAngle=swimming?Math.sin(phase*1.3)*.32:moving?Math.sin(phase)*(wading?.32:.5):0;
-  const armAngle=swimming?-.8+Math.sin(phase)*.85:moving?-Math.sin(phase)*(wading?.2:.35):0;
+  const legAngle=swimming?Math.sin(phase*1.3)*.32:!onGround?-.25:moving?Math.sin(phase)*(wading?.32:.5):0;
+  const armAngle=swimming?-.8+Math.sin(phase)*.85:!onGround?-.35:moving?-Math.sin(phase)*(wading?.2:.35):0;
   legs[i].rotation.x=THREE.MathUtils.lerp(legs[i].rotation.x,legAngle,Math.min(1,dt*10));
   arms[i].rotation.x=THREE.MathUtils.lerp(arms[i].rotation.x,armAngle,Math.min(1,dt*10));
   arms[i].rotation.z=THREE.MathUtils.lerp(arms[i].rotation.z,swimming?(i===0?-.38:.38):0,Math.min(1,dt*8));
@@ -310,7 +341,8 @@ function animate(){
  scene.fog.color.copy(submerged?underwaterFog:airFog);
  scene.fog.density=submerged?.036:.0035;
  scene.background.copy(submerged?underwaterFog:skyColor);
- const label=swimming?(swimDive>.25?'Diving':'Swimming'):wading?'Wading':moving?(sprint?'Sprinting':'Walking'):'Exploring';
+ weapons.update(dt,{mode,swimming,moving,sprint});
+ const label=swimming?(swimDive>.25?'Diving':'Swimming'):!onGround?'Jumping':wading?'Wading':moving?(sprint?'Sprinting':'Walking'):'Exploring';
  document.querySelector('#stats').textContent=label+' · X '+p.x.toFixed(0)+' · Z '+p.z.toFixed(0)+' · '+chunks.size+' chunks';
  renderer.render(scene,camera);
 }
@@ -325,12 +357,12 @@ if(new URLSearchParams(location.search).has('debug')){
    waterNormalsLoaded:!!(waterNormals.image&&waterNormals.image.width>0),
    characterLoaded:!!characterMixer,
    depth:WATER_LEVEL-ground(player.position.x,player.position.z),
-   x:player.position.x,z:player.position.z,
-   swimming,swimDive,mode
+   x:player.position.x,z:player.position.z,y:player.position.y,groundY:ground(player.position.x,player.position.z),
+   swimming,swimDive,mode,onGround,verticalSpeed,jumpCount,weapons:weapons.debug()
   }),
   teleportLake:()=>{
    player.position.set(LAKE_X,ground(LAKE_X,LAKE_Z),LAKE_Z);
-   velocity.set(0,0,0);swimDive=0;
+   velocity.set(0,0,0);swimDive=0;verticalSpeed=0;onGround=false;
   }
  };
 }

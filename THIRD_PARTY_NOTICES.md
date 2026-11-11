@@ -87,3 +87,19 @@ https://github.com/call-me-sensei-app/toonlab/blob/2e354c52e5539e33fb3d8f339645b
 
 The earlier Soldier.glb source is no longer the primary character, but the
 fallback capsule avatar is retained when the GLB cannot load.
+
+## CC0 KayKit two-handed rifle animations
+
+Creator: Kay Lousberg, KayKit Character Animations 1.1 (2025).
+License: Creative Commons Zero (CC0 1.0), commercial use permitted, attribution optional.
+Original: https://kaylousberg.com/game-assets/character-animations
+Repository mirror and per-pack license: https://github.com/NoLimitNexus/game-models/blob/main/licenses/kaykit-character-animations.txt
+Pinned animation source: https://github.com/NoLimitNexus/game-models/blob/d188ebf93ceb3c4b95ba9bc6b1856cd1fd34915d/library/animations/Rig_Medium_CombatRanged.glb
+
+The game uses the authored `Ranged_2H_Aiming`, `Ranged_2H_Shoot`, and
+`Ranged_2H_Reload` clips. Their upper-body local bone rotations are retargeted
+onto the existing Quaternius mannequin at runtime. These animations are used
+only while the M4A1 rifle is equipped; original pistol clips are retained.
+
+No KayKit assets have been copied into this repository: the GLB is loaded from
+a pinned upstream URL.

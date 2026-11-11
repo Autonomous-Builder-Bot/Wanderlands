@@ -32,6 +32,13 @@ Then open http://localhost:8000/.
 
 Add `?seed=2026` to the URL for a reproducible world.
 
+## Targeted rifle and swimming corrections
+- Reduce the extra forward body tilt while swimming, so the swimmer does not look straight down; underwater movement, water rendering, and authored Swim_Fwd_Loop remain unchanged
+- Keep all existing Quaternius pistol idle, shooting, and reload clips for the P226
+- Add separate CC0 KayKit two-handed rifle aiming, shooting, and reloading clips for the M4A1 in third-person and top-down views
+- Retarget only upper-body bone rotations from KayKit's Rig_Medium to the current Quaternius mannequin, without changing movement, first-person mouse lock, or weapon/ammunition rules
+- This is not full hand IK; final grip refinement remains a possible future task
+
 ## Version 0.5 — Camera and character animation
 - Pointer lock in first person: mouse movement looks around without holding the mouse button; Escape releases it
 - Improved third-person gun attachment to the actual animated right hand

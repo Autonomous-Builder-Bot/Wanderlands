@@ -2,7 +2,10 @@ import { test, expect } from '@playwright/test';
 
 test('official water renders horizontally and player can swim and dive',async({page},testInfo)=>{
  const exceptions=[];
- page.on('pageerror',e=>exceptions.push(e.message));
+ page.on('pageerror',e=>{exceptions.push(e.message);console.error('Browser exception:',e.message)});
+ page.on('requestfailed',r=>console.error('Resource failed:',r.url(),r.failure()?.errorText));
+ page.on('response',r=>{if(r.status()>=400)console.error('HTTP error:',r.status(),r.url());});
+ page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.error('Browser console:',m.type(),m.text());});
  await page.goto('/?debug=1',{waitUntil:'domcontentloaded'});
  await expect(page.locator('#stats')).not.toHaveText(/Generating world/, {timeout:30000});
  const state=()=>page.evaluate(()=>window.__wanderlandsDebug?.state());

@@ -5,7 +5,7 @@ test('rifle uses CC0 two-handed clips while pistol retains separate originals; s
  page.on('pageerror',e=>errors.push(e.message));
  page.on('requestfailed',r=>console.log('FAILED_ASSET',r.url(),r.failure()?.errorText));
  page.on('console',m=>{if(m.type()==='warning'||m.type()==='error')console.log('BROWSER',m.type(),m.text())});
- await page.goto('/?debug=1',{waitUntil:'domcontentloaded'});
+ await page.goto('/?debug=1&mode=guns',{waitUntil:'domcontentloaded'});
  const state=()=>page.evaluate(()=>window.__wanderlandsDebug?.state());
  await expect.poll(async()=>!!(await state()),{timeout:45000}).toBe(true);
  await expect.poll(async()=> (await state()).characterClipNames?.length>20,{timeout:45000}).toBe(true);

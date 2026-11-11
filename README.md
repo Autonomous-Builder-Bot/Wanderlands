@@ -16,7 +16,7 @@ python -m http.server 8000
 Then open http://localhost:8000/.
 
 ## Medieval loadout prototype (optional)
-Press **M** in the live world to switch between the original firearms and medieval testing mode.
+**Medieval mode is now the default when the game opens.** Press **M** to switch between medieval testing mode and the original firearms. Append `?mode=guns` to start in firearms mode.
 The medieval mode deliberately uses third-person/top-down views for now. Press **Q**
 to swap between **one-handed sword + shield** and **two-handed greatsword**.
 Use **left click** for authored one-/two-handed attacks and **right click** for
@@ -27,7 +27,7 @@ This mode uses the actual **CC0 KayKit rigged knight and matching swords/shield*
 with the original KayKit **Rig_Medium CombatMelee** and **MovementBasic** animation
 libraries. Its right/left hands, sword and shield share the same skeleton.
 The previous guns and Quaternius character are preserved and can be restored
-with **M**.
+with **M**. The live UI identifies itself as **MEDIEVAL PREVIEW**.
 
 **Prototype limits:** No opponent damage or collision, hit registration,
 combat stamina, equip inventory or first-person melee view yet. The

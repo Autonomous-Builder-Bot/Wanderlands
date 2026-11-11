@@ -4,7 +4,7 @@ test('third-person rifle grips actually meet hands, pistol remains independent a
   const errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   page.on('requestfailed',r=>console.log('ASSET_FAIL',r.url(),r.failure()?.errorText));
-  await page.goto('/?debug=1',{waitUntil:'domcontentloaded'});
+  await page.goto('/?debug=1&mode=guns',{waitUntil:'domcontentloaded'});
   const state=()=>page.evaluate(()=>window.__wanderlandsDebug.state());
   await expect.poll(async()=> (await state())?.rifleAnimations?.ready,{timeout:90000}).toBe(true);
   await expect.poll(async()=> (await state()).weapons.loaded.every(w=>w.loaded),{timeout:90000}).toBe(true);

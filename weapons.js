@@ -134,7 +134,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     if(activeReload!==null)return false;
     selected=(index+weapons.length)%weapons.length;
     heldFire=false;recoil=0;
-    applyVisibility();
+    applyVisibility();updateHud();
     return true;
   }
 

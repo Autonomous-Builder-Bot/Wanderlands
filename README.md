@@ -15,6 +15,25 @@ python -m http.server 8000
 
 Then open http://localhost:8000/.
 
+## Medieval loadout prototype (optional)
+Press **M** in the live world to switch between the original firearms and medieval testing mode.
+The medieval mode deliberately uses third-person/top-down views for now. Press **Q**
+to swap between **one-handed sword + shield** and **two-handed greatsword**.
+Use **left click** for authored one-/two-handed attacks and **right click** for
+shield block / greatsword parry; WASD, sprint and jump work with matching KayKit
+locomotion clips. When swimming, the normal Quaternius swimming character appears.
+
+This mode uses the actual **CC0 KayKit rigged knight and matching swords/shield**
+with the original KayKit **Rig_Medium CombatMelee** and **MovementBasic** animation
+libraries. Its right/left hands, sword and shield share the same skeleton.
+The previous guns and Quaternius character are preserved and can be restored
+with **M**.
+
+**Prototype limits:** No opponent damage or collision, hit registration,
+combat stamina, equip inventory or first-person melee view yet. The
+greatsword supports authored two-handed idle/attack/block movements; fine grip
+and elbow posture will need further visual tuning.
+
 ## Controls
 | Key | Action |
 |---|---|
@@ -112,3 +131,8 @@ Asset provenance: `assets/waternormals.jpg` comes from `mrdoob/three.js` tag `r1
 
 ### Character asset details
 The CC0 test mannequin comes from Quaternius's Universal Animation Library (Standard), packaged as a web-ready GLB by ToonLab, pinned to the upstream commit listed in `THIRD_PARTY_NOTICES.md`. Its 46 native clips are used directly, avoiding cross-rig animation retargeting for this prototype.
+
+### Medieval asset source
+- [KayKit Adventurers, CC0](https://kaylousberg.itch.io/kaykit-adventurers): sword, shield, knight, greatsword props.
+- [KayKit Character Animations, CC0](https://kaylousberg.itch.io/kaykit-character-animations): one-handed attacks, two-handed attacks, blocking, movement and jumping.
+- Sources loaded from version-pinned public GitHub repositories, recorded in THIRD_PARTY_NOTICES.md.

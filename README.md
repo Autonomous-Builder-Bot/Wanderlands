@@ -43,7 +43,7 @@ Add `?seed=2026` to the URL for a reproducible world.
 - The temporary Soldier character does not yet have authored swim clips; it uses a tilted idle pose underwater. Real CC0 swimming motions are available from Quaternius/KinemIQ for future retargeting.
 - Terrain and vegetation have no collision except a vertical ground-height constraint.
 - There is no combat, inventory, saving, NPCs, or RPG progression yet.
-- Three.js, the Water normals texture and temporary character are currently loaded from pinned jsDelivr URLs, so gameplay needs internet access unless these assets are vendored locally.
+- The water-normal image is stored in `assets/waternormals.jpg` (original Three.js r169 binary). Three.js modules load from version-pinned jsDelivr, while the temporary Soldier model loads from the version-pinned official GitHub repository. The game therefore currently needs internet access for its engine and model.
 - The reflective surface is visual only; buoyancy, drag, wading and diving are intentionally simple scripted gameplay physics, not simulated fluid dynamics.
 
 ## Next development priorities
@@ -59,3 +59,5 @@ Add `?seed=2026` to the URL for a reproducible world.
 
 ## Automated testing
 Run `npm install`, `npx playwright install chromium`, then `npm run test:browser` from the repository. GitHub Actions also runs these Chromium checks on pushes to `main`. It checks scene initialization, official lake geometry/normal map, character model loading, walking, cameras, swimming, dive and ascent.
+
+Asset provenance: `assets/waternormals.jpg` comes from `mrdoob/three.js` tag `r169`, path `examples/textures/waternormals.jpg`, Git blob `9dfe03ce483a02fff31c35421094c53a333097bc`. See `THIRD_PARTY_NOTICES.md`.

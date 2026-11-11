@@ -123,7 +123,7 @@ function makeChunk(cx,cz){
 // and the repeated normal map drives the animated reflected highlights.
 // Gameplay buoyancy lives in animate(); the Water class is a renderer only.
 const waterNormals=new THREE.TextureLoader().load(
- 'https://cdn.jsdelivr.net/npm/three@0.169.0/examples/textures/waternormals.jpg',
+ 'https://raw.githubusercontent.com/mrdoob/three.js/r169/examples/textures/waternormals.jpg',
  texture=>{texture.wrapS=texture.wrapT=THREE.RepeatWrapping;},
  undefined,
  error=>console.warn('Water normal texture did not load:',error)
@@ -185,7 +185,7 @@ for(const sign of [-1,1]){
 // It is deliberately isolated under avatar so we can replace the model later.
 let characterMixer=null,characterActions=null;
 new GLTFLoader().load(
- 'https://cdn.jsdelivr.net/npm/three@0.169.0/examples/models/gltf/Soldier.glb',
+ 'https://raw.githubusercontent.com/mrdoob/three.js/r169/examples/models/gltf/Soldier.glb',
  gltf=>{
   const clips=Object.fromEntries(gltf.animations.map(clip=>[clip.name.toLowerCase(),clip]));
   if(!clips.idle||!clips.walk||!clips.run){

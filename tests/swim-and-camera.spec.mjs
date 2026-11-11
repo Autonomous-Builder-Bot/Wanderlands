@@ -19,6 +19,8 @@ test('first-person mouse lock and actual animated swim and third-person weapons'
  const mount=await state();
  expect(mount.weapons.worldGunSize.some(n=>n>0)).toBe(true);
  expect(mount.weapons.worldGunChildren).toBeGreaterThan(0);
+ console.log('VERIFIED WORLD GUN',JSON.stringify(mount.weapons));
+ await page.screenshot({path:testInfo.outputPath('third-person-gun.png')});
 
  await page.keyboard.press('3');
  if(!(await state()).pointerLocked)await page.locator('canvas').click({position:{x:200,y:160}});
@@ -35,6 +37,12 @@ test('first-person mouse lock and actual animated swim and third-person weapons'
  await expect.poll(async()=> (await state()).activeCharacterState,{timeout:12000}).toBe('tread');
  await page.keyboard.down('w');
  await expect.poll(async()=> (await state()).activeCharacterState,{timeout:10000}).toBe('swim');
+ await expect.poll(async()=> (await state()).animationWeights.swim,{timeout:7000}).toBeGreaterThan(.5);
+ const a=(await state()).handPose;
+ await page.waitForTimeout(450);
+ const b=(await state()).handPose;
+ expect(a).toBeTruthy();expect(b).toBeTruthy();
+ expect(a.reduce((n,v,i)=>n+Math.abs(v-b[i]),0)).toBeGreaterThan(.015);
  await page.keyboard.up('w');
  await page.screenshot({path:testInfo.outputPath('actual-swim.png')});
  expect(errors).toEqual([]);

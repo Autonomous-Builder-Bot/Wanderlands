@@ -21,6 +21,7 @@ test('third-person rifle grips actually meet hands, pistol remains independent a
   await expect.poll(async()=> (await state()).rifleAnimations.active,{timeout:7000}).toBe('aim');
   await page.waitForTimeout(900);
   const rifle=await state();
+  expect(rifle.weapons.rifleIKActive).toBe(true);
   const playerPos=[rifle.x,rifle.y,rifle.z];
   const d=rifle.weapons.worldGunPosition.map((v,i)=>v-playerPos[i]);
   const projection=d.reduce((sum,v,i)=>sum+v*rifle.visualForward[i],0);
@@ -51,6 +52,9 @@ test('third-person rifle grips actually meet hands, pistol remains independent a
   await expect.poll(async()=> (await state()).swimBodyTilt,{timeout:7000}).toBeGreaterThan(-.25);
   let level=(await state()).swimBodyTilt;
   console.log('SWIM_LEVEL',level);
+  expect(level).toBeGreaterThan(-.12);
+  await expect.poll(async()=> (await state()).swimVisualLift,{timeout:9000}).toBeGreaterThan(.07);
+  expect((await state()).swimVisualLift).toBeLessThan(.11);
   await page.screenshot({path:testInfo.outputPath('swim-head-up.png')});
   await page.keyboard.down('Space');
   await expect.poll(async()=> (await state()).swimBodyTilt,{timeout:7000}).toBeGreaterThan(level+.12);

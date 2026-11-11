@@ -497,15 +497,7 @@ if(new URLSearchParams(location.search).has('debug')){
      shoot:characterActions?.pistolShoot?.getEffectiveWeight()||0,
      reload:characterActions?.pistolReload?.getEffectiveWeight()||0
    },
-   handPose:characterModel?.getObjectByName('DEF-handR')?.quaternion.toArray()||null,
-   boneTransforms:(()=>{
-     const map={};if(!characterModel)return map;
-     characterModel.traverse(o=>{if(o.isBone&&/(upper.*arm|forearm|hand|shoulder|spine|chest)/i.test(o.name)){
-       map[o.name]={p:o.getWorldPosition(new THREE.Vector3()).toArray().map(x=>+x.toFixed(3)),
-           q:o.getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3))};
-     }});
-     return map;
-   })()
+   handPose:characterModel?.getObjectByName('DEF-handR')?.quaternion.toArray()||null
   }),
   teleportLake:()=>{
    player.position.set(LAKE_X,ground(LAKE_X,LAKE_Z),LAKE_Z);

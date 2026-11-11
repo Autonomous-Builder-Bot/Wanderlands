@@ -1,8 +1,11 @@
 name: Browser smoke test
 on:
   push:
-    branches: [main]
+    branches: [main, feature/jumping-weapons]
   workflow_dispatch:
+concurrency:
+  group: wanderlands-browser-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

@@ -22,11 +22,21 @@ Then open http://localhost:8000/.
 | Shift | Sprint (also while swimming) |
 | Mouse drag | Rotate camera |
 | 1 / 2 / 3 | Top-down / third-person / first-person |
-| Space | Swim up / rise toward the surface |
+| Space | Jump on land / swim up toward surface in deep water |
 | C or Left Ctrl | Dive while in deep water |
-| R | Generate a new world seed |
+| Left click | Fire equipped weapon |
+| R | Reload |
+| Q | Switch pistol / rifle |
+| N | Generate a new world seed |
 
 Add `?seed=2026` to the URL for a reproducible world.
+
+## Version 0.4 — Jumping and weapons
+- Gravity-based jumps, aerial movement, ground landing, and existing water interactions
+- Two weapon types (pistol and rifle) with ammunition, reload, firing, weapon switching and impact indicators
+- Real CC BY 4.0 weapon-and-arm GLB assets from a pinned IRONLINE revision, with an authored reload-arm clip pack
+- First-person weapon models plus a held-weapon mesh attached to the temporary Soldier hand in third person
+- `weapons.js` encapsulates weapon state and loading; the existing top-down/third/first person camera controls remain
 
 ## Current features
 - Seeded terrain with gentler hills and a guaranteed lake near spawn
@@ -42,7 +52,9 @@ Add `?seed=2026` to the URL for a reproducible world.
 - Water uses lightweight scripted gameplay physics, **not** a fluid simulation.
 - The temporary Soldier character does not yet have authored swim clips; it uses a tilted idle pose underwater. Real CC0 swimming motions are available from Quaternius/KinemIQ for future retargeting.
 - Terrain and vegetation have no collision except a vertical ground-height constraint.
-- There is no combat, inventory, saving, NPCs, or RPG progression yet.
+- Weapons have basic firing and ammunition, but no enemies, hit-point combat, advanced bullet physics, inventory persistence, or RPG progression yet.
+- The temporary Soldier model has no authored jump or full-body shooting clips, so airborne posing is basic.
+- First-person reload hand motion comes from a donor animation rig; full live hand-target IK is not integrated yet.
 - The water-normal image is stored in `assets/waternormals.jpg` (original Three.js r169 binary). Three.js modules load from version-pinned jsDelivr, while the temporary Soldier model loads from the version-pinned official GitHub repository. The game therefore currently needs internet access for its engine and model.
 - The reflective surface is visual only; buoyancy, drag, wading and diving are intentionally simple scripted gameplay physics, not simulated fluid dynamics.
 
@@ -61,3 +73,7 @@ Add `?seed=2026` to the URL for a reproducible world.
 Run `npm install`, `npx playwright install chromium`, then `npm run test:browser` from the repository. GitHub Actions also runs these Chromium checks on pushes to `main`. It checks scene initialization, official lake geometry/normal map, character model loading, walking, cameras, swimming, dive and ascent.
 
 Asset provenance: `assets/waternormals.jpg` comes from `mrdoob/three.js` tag `r169`, path `examples/textures/waternormals.jpg`, Git blob `9dfe03ce483a02fff31c35421094c53a333097bc`. See `THIRD_PARTY_NOTICES.md`.
+
+### Additional free asset sources used for the prototype
+- [IRONLINE first-person models and credited animation rigs](https://github.com/cktang88/3d-fps) (derived from CC BY 4.0 art; see `THIRD_PARTY_NOTICES.md`)
+- Only loadout demonstrator assets; they are not the planned final character or weapon art.

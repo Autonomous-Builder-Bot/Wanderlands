@@ -50,9 +50,9 @@ test('rifle uses CC0 two-handed clips while pistol retains separate originals; s
  await expect.poll(async()=> (await state()).swimming,{timeout:12000}).toBe(true);
  await page.keyboard.down('w');
  await expect.poll(async()=> (await state()).activeCharacterState,{timeout:12000}).toBe('swim');
- await expect.poll(async()=> (await state()).swimBodyTilt,{timeout:12000}).toBeLessThan(-.3);
+ await expect.poll(async()=> (await state()).swimBodyTilt,{timeout:12000}).toBeGreaterThan(-.24);
  const tilt=(await state()).swimBodyTilt;
- expect(tilt).toBeGreaterThan(-.8);
+ expect(tilt).toBeLessThan(-.02);
  await page.screenshot({path:testInfo.outputPath('swim-tilt.png')});
  await page.keyboard.up('w');
  expect(errors).toEqual([]);

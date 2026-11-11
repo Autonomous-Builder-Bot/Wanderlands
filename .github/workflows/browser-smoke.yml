@@ -21,8 +21,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: wanderlands-browser-debug
+          name: wanderlands-visual-review
           path: test-results/
-          retention-days: 7
+          retention-days: 3

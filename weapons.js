@@ -23,7 +23,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   const weapons=SPECS.map(x=>({...x,modelLoaded:false,assetError:null}));
   let selected=0, character=null, boundHand=null,bodyRoot=null;
   const armChains={};
-  let shotCount=0,swimmingState=false;
+  let shotCount=0,swimmingState=false,medievalMode=false;
   let activeReload=null, reloadTime=0, cooldown=0, recoil=0, muzzleTime=0, heldFire=false;
   let reloadScene=null,reloadMixer=null,reloadClips=[],reloadAction=null,reloadError=null;
   const shotMarks=[];
@@ -147,8 +147,8 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   });
 
   function applyVisibility() {
-    for(const [id,mesh] of models)mesh.visible=id===weapons[selected].id;
-    for(const [id,holder] of gunHolders)holder.visible=id===weapons[selected].id&&!swimmingState;
+    for(const [id,mesh] of models)mesh.visible=id===weapons[selected].id&&!medievalMode;
+    for(const [id,holder] of gunHolders)holder.visible=id===weapons[selected].id&&!swimmingState&&!medievalMode;
   }
 
   // Visual gun barrel points down -Z. Keep that axis lined up with the
@@ -303,13 +303,13 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     rifleTargets={right:rightWorld.toArray(),left:leftWorld.toArray()};
   }
   function setPerspective(n,swimming=false) {
-    fpRoot.visible=n===3&&!swimming;
-    crosshair.style.display=n===3&&!swimming?'block':'none';
-    display.style.display=swimming?'none':'block';
+    fpRoot.visible=n===3&&!swimming&&!medievalMode;
+    crosshair.style.display=n===3&&!swimming&&!medievalMode?'block':'none';
+    display.style.display=swimming||medievalMode?'none':'block';
   }
 
   function choose(index) {
-    if(activeReload!==null)return false;
+    if(activeReload!==null||medievalMode)return false;
     selected=(index+weapons.length)%weapons.length;
     heldFire=false;recoil=0;
     applyVisibility();updateHud();resetRifleIK();
@@ -321,7 +321,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
 
   function fire() {
     const w=weapon();
-    if(activeReload!==null||cooldown>0||w.ammo<=0||!fpRoot.userData.canFire)return false;
+    if(medievalMode||activeReload!==null||cooldown>0||w.ammo<=0||!fpRoot.userData.canFire)return false;
     w.ammo--;cooldown=w.interval;recoil=.16;muzzleTime=.08;shotCount++;
     const targetOrigin=camera.getWorldPosition(new THREE.Vector3());
     const rayDir=camera.getWorldDirection(new THREE.Vector3());
@@ -338,13 +338,14 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
   }
 
   function setTrigger(pressed) {
+    if(medievalMode){heldFire=false;return;}
     if(pressed&&!heldFire)fire();
     heldFire=pressed;
   }
 
   function reload() {
     const w=weapon();
-    if(activeReload!==null||w.ammo>=w.magazine||w.reserve<=0||!fpRoot.userData.canFire)return false;
+    if(medievalMode||activeReload!==null||w.ammo>=w.magazine||w.reserve<=0||!fpRoot.userData.canFire)return false;
     activeReload=w.id;
     reloadTime=w.reloadSeconds;
     reloadAction=null;
@@ -387,13 +388,13 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
       if(p.t<=0){scene.remove(p.mesh);p.mesh.geometry.dispose();p.mesh.material.dispose();shotMarks.splice(i,1);}
     }
     setPerspective(mode,swimming);
-    if(!swimming){
+    if(!swimming&&!medievalMode){
       alignWorldGuns(playerYaw);
       if(mode!==3)updateRifleHands({swimming,reloading:activeReload!==null,dt});
       else if(rifleIKActive)resetRifleIK();
     }
     if(swimming!==swimmingState){swimmingState=swimming;applyVisibility();if(swimming)resetRifleIK();}
-    fpRoot.userData.canFire=!swimming;
+    fpRoot.userData.canFire=!swimming&&!medievalMode;
     if(activeReload!==null) {
       reloadTime-=dt;
       if(reloadMixer)reloadMixer.update(dt);
@@ -405,7 +406,7 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
         }
         cancelReload();updateHud();
       }
-    }else if(heldFire&&weapon().automatic) fire();
+    }else if(!medievalMode&&heldFire&&weapon().automatic) fire();
 
     const bob=moving?Math.sin(elapsed*(sprint?14:9))*.012:Math.sin(elapsed*1.8)*.003;
     const selectedMesh=models.get(weapon().id);
@@ -425,11 +426,19 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     };
   }
 
+  function setMedievalMode(flag){
+    medievalMode=!!flag;
+    heldFire=false;
+    resetRifleIK();
+    applyVisibility();
+    setPerspective(fpRoot.visible?3:2,swimmingState);
+  }
+
   // The reload pack contains real baked animation tracks; keep its metadata
   // so clip names remain verifiable after loading from a separate GLB.
   function debug(){
     return {
-      active:weapon().id,ammo:weapon().ammo,reserve:weapon().reserve,
+      active:weapon().id,ammo:weapon().ammo,reserve:weapon().reserve,medievalMode,
       loaded:weapons.map(w=>({id:w.id,loaded:w.modelLoaded,error:w.assetError})),
       reloadAssetLoaded:!!reloadScene,reloadClipNames:[...reloadClips],
       reloadError,reloading:activeReload!==null,
@@ -457,5 +466,5 @@ export function createWeaponSystem({camera,scene,raycastTargets=()=>[]}) {
     };
   }
   updateHud();
-  return {bindCharacter,setPerspective,choose,switchWeapon,setTrigger,reload,update,animationState,debug,fire};
+  return {bindCharacter,setPerspective,choose,switchWeapon,setTrigger,reload,update,setMedievalMode,animationState,debug,fire};
 }
